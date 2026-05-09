@@ -27,7 +27,7 @@ export default async function handler(req, res) {
   }
 
   const url = new URL(req.url, baseUrl);
-  const returnTo = url.searchParams.get('return_to') || '/';
+  const returnTo = url.searchParams.get('return_to') || '/app/';
   const tenantId = url.searchParams.get('tenant_id') || null;
 
   const state = randomState();
