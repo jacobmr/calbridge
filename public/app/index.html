@@ -96,6 +96,23 @@
     </main>
   </div>
 
+  <!-- Calendar Preview Modal -->
+  <div class="modal-overlay" id="preview-modal" onclick="if(event.target===this) closePreviewModal()">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Discover Calendars</h3>
+        <button class="modal-close" onclick="closePreviewModal()">×</button>
+      </div>
+      <div class="modal-body" id="preview-modal-body">
+        <div class="loading"><div class="spinner"></div>Loading…</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closePreviewModal()">Cancel</button>
+        <button class="btn btn-primary" id="preview-import-btn" onclick="importSelectedCalendars()">Import Selected</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/app/app.js"></script>
 </body>
 </html>

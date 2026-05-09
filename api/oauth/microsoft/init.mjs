@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { getDb } from '../../../db/client.mjs';
+import { loadSession } from '../../../lib/session.mjs';
 
 const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
 
@@ -28,14 +29,28 @@ export default async function handler(req, res) {
 
   const url = new URL(req.url, baseUrl);
   const returnTo = url.searchParams.get('return_to') || '/app/';
-  const tenantId = url.searchParams.get('tenant_id') || null;
 
-  const state = randomState();
   const db = getDb();
   const now = Date.now();
+
+  const session = await loadSession(req);
+  let tenantId = null;
+  let intent = 'signup';
+  if (session?.userId) {
+    const tRow = await db.execute({
+      sql: 'SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1',
+      args: [session.userId],
+    });
+    if (tRow.rows.length) {
+      tenantId = tRow.rows[0].id;
+      intent = 'link';
+    }
+  }
+
+  const state = randomState();
   await db.execute({
     sql: 'INSERT INTO oauth_states (id, intent, provider, tenant_id, return_to, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    args: [state, 'link', 'microsoft', tenantId, returnTo, now, now + 10 * 60 * 1000],
+    args: [state, intent, 'microsoft', tenantId, returnTo, now, now + 10 * 60 * 1000],
   });
 
   const scopes = [

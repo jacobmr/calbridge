@@ -61,7 +61,7 @@ describe('Google OAuth', () => {
     await db.execute('DELETE FROM users');
   });
 
-  it('init redirects to Google with state param', async () => {
+  it('init redirects to Google with state param (signup when no session)', async () => {
     const req = mockReq({ url: '/api/oauth/google/init?return_to=/dashboard' });
     const res = mockRes();
 
@@ -81,13 +81,52 @@ describe('Google OAuth', () => {
     // Verify state stored in DB
     const db = getDb();
     const stateRows = await db.execute({
-      sql: 'SELECT id, intent, provider, return_to FROM oauth_states WHERE id = ?',
+      sql: 'SELECT id, intent, provider, return_to, tenant_id FROM oauth_states WHERE id = ?',
+      args: [locUrl.searchParams.get('state')],
+    });
+    assert.equal(stateRows.rows.length, 1);
+    assert.equal(stateRows.rows[0].intent, 'signup');
+    assert.equal(stateRows.rows[0].provider, 'google');
+    assert.equal(stateRows.rows[0].return_to, '/dashboard');
+    assert.equal(stateRows.rows[0].tenant_id, null);
+  });
+
+  it('init uses link intent when session cookie present', async () => {
+    const db = getDb();
+    const userId = 'test-user-link';
+    const tenantId = 'test-tenant-link';
+    const now = Date.now();
+    await db.execute({
+      sql: 'INSERT INTO users (id, email, display_name, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)',
+      args: [userId, 'link@example.com', 'Link User', now, now],
+    });
+    await db.execute({
+      sql: 'INSERT INTO tenants (id, slug, name, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?)',
+      args: [tenantId, 'link-user', 'Link User', userId, now],
+    });
+
+    const { buildCookieValue } = await import('../lib/session.mjs');
+    const sessionId = 'test-session-link';
+    await db.execute({
+      sql: 'INSERT INTO sessions (id, user_id, created_at, expires_at, last_used_at) VALUES (?, ?, ?, ?, ?)',
+      args: [sessionId, userId, now, now + 30 * 24 * 60 * 60 * 1000, now],
+    });
+    const cookie = `cb_session=${buildCookieValue(sessionId)}`;
+
+    const req = mockReq({ url: '/api/oauth/google/init?return_to=/app/', cookie });
+    const res = mockRes();
+
+    await initHandler(req, res);
+
+    assert.equal(res.statusCode, 302);
+    const locUrl = new URL(res.headers.location);
+    const stateRows = await db.execute({
+      sql: 'SELECT id, intent, tenant_id FROM oauth_states WHERE id = ?',
       args: [locUrl.searchParams.get('state')],
     });
     assert.equal(stateRows.rows.length, 1);
     assert.equal(stateRows.rows[0].intent, 'link');
-    assert.equal(stateRows.rows[0].provider, 'google');
-    assert.equal(stateRows.rows[0].return_to, '/dashboard');
+    assert.equal(stateRows.rows[0].tenant_id, tenantId);
   });
 
   it('callback creates user, tenant, and oauth_account on first sign-in', async () => {
@@ -203,9 +242,9 @@ describe('Google OAuth', () => {
 
     assert.equal(res.statusCode, 302);
 
-    // Should still be only one user and one account
+    // Should not create any new users or accounts on re-auth
     const userRows = await db.execute({ sql: 'SELECT COUNT(*) as c FROM users' });
-    assert.equal(userRows.rows[0].c, 1);
+    assert.equal(userRows.rows[0].c, 2); // test@example.com + link@example.com
 
     const acctRows = await db.execute({ sql: 'SELECT COUNT(*) as c FROM oauth_accounts' });
     assert.equal(acctRows.rows[0].c, 1);

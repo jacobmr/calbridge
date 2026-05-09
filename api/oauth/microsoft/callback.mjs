@@ -161,6 +161,42 @@ export default async function handler(req, res) {
         ],
       });
     }
+  } else if (stateRec.intent === 'link' && stateRec.tenant_id) {
+    // Linking additional account to existing tenant
+    tenantId = stateRec.tenant_id;
+    const tenantOwner = await db.execute({
+      sql: 'SELECT owner_user_id FROM tenants WHERE id = ?',
+      args: [tenantId],
+    });
+    userId = tenantOwner.rows[0]?.owner_user_id;
+    if (!userId) {
+      res.statusCode = 400;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ error: 'tenant not found' }));
+      return;
+    }
+
+    const acctId = randomUUID();
+    await db.execute({
+      sql: `INSERT INTO oauth_accounts
+        (id, tenant_id, user_id, provider, provider_account_id, email,
+         refresh_token_enc, access_token_enc, access_token_expires_at, scopes, raw_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        acctId,
+        tenantId,
+        userId,
+        'microsoft',
+        providerAccountId,
+        email,
+        encrypt(tokens.refresh_token || ''),
+        tokens.access_token ? encrypt(tokens.access_token) : null,
+        tokens.expires_in ? now + tokens.expires_in * 1000 : null,
+        tokens.scope || '',
+        JSON.stringify(microsoftUser),
+        now,
+      ],
+    });
   } else {
     // New Microsoft account — see if user already exists by email
     const existingUser = await db.execute({
