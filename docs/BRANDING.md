@@ -1,13 +1,13 @@
-# Calbridge Brand Framework
+# MiCal Brand Framework
 
 ## Positioning
 
-**Calbridge** is the calendar infrastructure for professionals who live across multiple calendar systems. We don't replace your calendars — we connect them, sync them, and make them work together.
+**MiCal** is the calendar infrastructure for professionals who live across multiple calendar systems. We don't replace your calendars — we connect them, sync them, and make them work together.
 
 **Tagline:** *Your calendars. One bridge. Zero conflicts.*
 
 **Elevator Pitch:**
-> Calbridge connects Google Calendar, Outlook, and ICS feeds into a single, synchronized system. Set up sync rules once, and your events flow automatically between calendars. Plus, create public booking pages so clients can schedule with you without the back-and-forth.
+> MiCal connects Google Calendar, Outlook, and ICS feeds into a single, synchronized system. Set up sync rules once, and your events flow automatically between calendars. Plus, create public booking pages so clients can schedule with you without the back-and-forth.
 
 ---
 
@@ -47,7 +47,7 @@
 ## Messaging Pillars
 
 ### Pillar 1: Stop Double-Booking Yourself
-> You have a meeting in Google Calendar. Your Outlook says you're free. Your client books that slot. Calbridge syncs your availability across all calendars so this never happens.
+> You have a meeting in Google Calendar. Your Outlook says you're free. Your client books that slot. MiCal syncs your availability across all calendars so this never happens.
 
 ### Pillar 2: Set Rules, Forget Maintenance
 > "Copy all events from Calendar A to Calendar B, but only during work hours, and block 15 minutes before and after." Set it once. It runs forever.
@@ -99,7 +99,7 @@
 
 ## Competitive Differentiation
 
-|  | Calendly | Reclaim.ai | Calbridge |
+|  | Calendly | Reclaim.ai | MiCal |
 |---|---|---|---|
 | Multi-provider sync | ❌ | Limited | ✅ Native |
 | Sync *rules* (filters, transforms) | ❌ | Basic | ✅ Advanced |
@@ -107,7 +107,7 @@
 | Multi-tenant workspaces | ❌ | ❌ | ✅ |
 | Self-hostable / API-first | ❌ | ❌ | ✅ (future) |
 
-**Angle:** Calendly is for *scheduling.* Reclaim is for *time blocking.* Calbridge is for *calendar infrastructure* — sync, bridge, and expose.
+**Angle:** Calendly is for *scheduling.* Reclaim is for *time blocking.* MiCal is for *calendar infrastructure* — sync, bridge, and expose.
 
 ---
 
@@ -122,7 +122,7 @@
 ## Domain Strategy
 
 - **Primary:** `mical.net` (current, short, memorable)
-- **Future:** `calbridge.io` (brand match)
+- **Future:** `mical.io` (brand match)
 - **API:** `mical.net/api/*`
 - **Booking pages:** `mical.net/b/{tenant}/{event-type}`
 

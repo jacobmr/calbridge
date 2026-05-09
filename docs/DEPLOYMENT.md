@@ -1,4 +1,4 @@
-# Calbridge — Deployment & Project Status
+# MiCal — Deployment & Project Status
 
 > Last updated: 2026-05-09
 
@@ -108,7 +108,7 @@ Clean URLs are enabled via `vercel.json` — all `.html` extensions are stripped
 ### OAuth Consent Screen
 | Field | Value |
 |---|---|
-| App name | `Calbridge` |
+| App name | `MiCal` |
 | User support email | `support@mical.net` |
 | App logo | `https://www.mical.net/logo.svg` (convert to PNG 120×120) |
 | App domain | `www.mical.net` |
