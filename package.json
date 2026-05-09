@@ -1,0 +1,17 @@
+{
+  "name": "calbridge",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test 'test/**/*.test.mjs'",
+    "db:migrate": "node db/migrate.mjs",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.0"
+  }
+}
