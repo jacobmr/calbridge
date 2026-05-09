@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MiCal Dashboard</title>
+  <link rel="stylesheet" href="/app/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌉</text></svg>">
+</head>
+<body>
+
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="/" class="logo"><img src="/logo.svg" alt="" style="width:28px;height:28px;vertical-align:middle;margin-right:8px;border-radius:6px;">Mi<span>Cal</span></a>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="overview" onclick="showTab('overview')">
+          <span class="nav-icon">🏠</span> Overview
+        </button>
+        <button class="nav-item" data-tab="calendars" onclick="showTab('calendars')">
+          <span class="nav-icon">📅</span> Calendars
+        </button>
+        <button class="nav-item" data-tab="sync-flows" onclick="showTab('sync-flows')">
+          <span class="nav-icon">🔄</span> Sync Flows
+        </button>
+        <button class="nav-item" data-tab="event-types" onclick="showTab('event-types')">
+          <span class="nav-icon">📋</span> Event Types
+        </button>
+        <button class="nav-item" data-tab="bookings" onclick="showTab('bookings')">
+          <span class="nav-icon">📖</span> Bookings
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <div class="user-details">
+            <div class="user-name" id="user-name">Loading…</div>
+            <div class="user-email" id="user-email"></div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm btn-block" onclick="handleLogout()">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Mobile overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="top-bar">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open menu">☰</button>
+        <h1 id="page-title">Dashboard</h1>
+        <div style="width:40px"></div>
+      </header>
+
+      <div class="page-content">
+        <!-- Overview -->
+        <div class="tab-page" id="tab-overview" style="display:block">
+          <div id="overview-content">
+            <div class="loading"><div class="spinner"></div>Loading…</div>
+          </div>
+        </div>
+
+        <!-- Calendars -->
+        <div class="tab-page" id="tab-calendars" style="display:none">
+          <div id="calendars-content">
+            <div class="loading"><div class="spinner"></div>Loading calendars…</div>
+          </div>
+        </div>
+
+        <!-- Sync Flows -->
+        <div class="tab-page" id="tab-sync-flows" style="display:none">
+          <div id="sync-flows-content">
+            <div class="loading"><div class="spinner"></div>Loading sync flows…</div>
+          </div>
+        </div>
+
+        <!-- Event Types -->
+        <div class="tab-page" id="tab-event-types" style="display:none">
+          <div id="event-types-content">
+            <div class="loading"><div class="spinner"></div>Loading event types…</div>
+          </div>
+        </div>
+
+        <!-- Bookings -->
+        <div class="tab-page" id="tab-bookings" style="display:none">
+          <div id="bookings-content">
+            <div class="loading"><div class="spinner"></div>Loading bookings…</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/app/app.js"></script>
+</body>
+</html>

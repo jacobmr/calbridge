@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book a Meeting — MiCal</title>
+  <link rel="stylesheet" href="/book/book.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌉</text></svg>">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <a href="/" class="logo"><img src="/logo.svg" alt=""> Mi<span>Cal</span></a>
+    </header>
+
+    <main class="booking-container">
+      <!-- Loading state -->
+      <div id="loading" class="state-loading">
+        <div class="spinner"></div>
+        <p>Loading event details…</p>
+      </div>
+
+      <!-- Error state -->
+      <div id="error" class="state-error hidden">
+        <div class="error-icon">⚠️</div>
+        <h2>Something went wrong</h2>
+        <p id="error-message">Unable to load this event.</p>
+      </div>
+
+      <!-- Booking flow -->
+      <div id="booking-flow" class="booking-card hidden">
+        <aside class="event-sidebar">
+          <div class="event-host">MiCal</div>
+          <h1 id="event-name" class="event-title">Event Name</h1>
+          <div class="event-meta">
+            <span class="meta-item" id="event-duration">⏱ —</span>
+            <span class="meta-item hidden" id="event-location"></span>
+          </div>
+          <p id="event-desc" class="event-desc"></p>
+        </aside>
+
+        <div class="booking-main">
+          <!-- Step 1: Pick date -->
+          <div id="step-date" class="step">
+            <h2 class="step-title">Select a Date</h2>
+            <div class="calendar">
+              <div class="calendar-header">
+                <button type="button" id="cal-prev" class="cal-nav" aria-label="Previous month">‹</button>
+                <span id="cal-month-year">—</span>
+                <button type="button" id="cal-next" class="cal-nav" aria-label="Next month">›</button>
+              </div>
+              <div class="calendar-grid">
+                <div class="cal-dow">Sun</div>
+                <div class="cal-dow">Mon</div>
+                <div class="cal-dow">Tue</div>
+                <div class="cal-dow">Wed</div>
+                <div class="cal-dow">Thu</div>
+                <div class="cal-dow">Fri</div>
+                <div class="cal-dow">Sat</div>
+              </div>
+              <div id="cal-days" class="calendar-grid cal-days"></div>
+            </div>
+          </div>
+
+          <!-- Step 2: Pick time -->
+          <div id="step-time" class="step hidden">
+            <div class="step-header">
+              <h2 class="step-title">Select a Time</h2>
+              <button type="button" id="back-to-date" class="btn-text">← Change date</button>
+            </div>
+            <div class="selected-date" id="selected-date-label">—</div>
+            <div id="time-slots" class="time-slots"></div>
+          </div>
+
+          <!-- Step 3: Enter details -->
+          <div id="step-form" class="step hidden">
+            <div class="step-header">
+              <h2 class="step-title">Your Details</h2>
+              <button type="button" id="back-to-time" class="btn-text">← Change time</button>
+            </div>
+            <div class="selected-datetime" id="selected-datetime-label">—</div>
+            <form id="booking-form" class="booking-form">
+              <div class="form-group">
+                <label for="name">Name *</label>
+                <input type="text" id="name" name="name" required placeholder="Jane Doe" autocomplete="name">
+              </div>
+              <div class="form-group" id="email-group">
+                <label for="email">Email <span id="email-required" class="hidden">*</span></label>
+                <input type="email" id="email" name="email" placeholder="jane@example.com" autocomplete="email">
+              </div>
+              <div class="form-group">
+                <label for="notes">Notes <span class="optional">(optional)</span></label>
+                <textarea id="notes" name="notes" rows="3" placeholder="What would you like to discuss?"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-submit" id="submit-btn">Confirm Booking</button>
+              <p id="form-error" class="form-error hidden"></p>
+            </form>
+          </div>
+
+          <!-- Step 4: Confirmation -->
+          <div id="step-confirm" class="step hidden">
+            <div class="confirm-card">
+              <div class="confirm-icon">✓</div>
+              <h2 class="confirm-title">Booking Confirmed!</h2>
+              <p class="confirm-subtitle">You're all set. A confirmation has been recorded.</p>
+
+              <div class="confirm-details">
+                <div class="confirm-row">
+                  <span class="confirm-label">Event</span>
+                  <span class="confirm-value" id="confirm-event"></span>
+                </div>
+                <div class="confirm-row">
+                  <span class="confirm-label">When</span>
+                  <span class="confirm-value" id="confirm-when"></span>
+                </div>
+                <div class="confirm-row">
+                  <span class="confirm-label">Booking ID</span>
+                  <span class="confirm-value confirm-mono" id="confirm-id"></span>
+                </div>
+                <div class="confirm-row">
+                  <span class="confirm-label">Cancel Token</span>
+                  <span class="confirm-value confirm-mono" id="confirm-token"></span>
+                </div>
+              </div>
+
+              <button type="button" onclick="window.location.reload()" class="btn btn-secondary btn-home">Book Another</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/book/book.js"></script>
+</body>
+</html>
