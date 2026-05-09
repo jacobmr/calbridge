@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OAuth Setup Reference — Calbridge</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .setup-page { background: var(--white); padding: 60px 0; }
+    .setup-page .container { max-width: 800px; }
+    .setup-page h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 12px; color: var(--bridge-blue); }
+    .setup-page .subtitle { color: var(--stone); margin-bottom: 40px; }
+    .field-group { background: var(--cloud); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .field-group h3 { font-size: 1rem; font-weight: 700; color: var(--charcoal); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .field-group .value { font-family: 'SF Mono', Monaco, monospace; font-size: 0.95rem; background: var(--white); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.06); word-break: break-all; color: var(--charcoal); }
+    .field-group .note { font-size: 0.85rem; color: var(--stone); margin-top: 8px; }
+    .copy-btn { float: right; font-size: 0.8rem; padding: 4px 10px; background: var(--bridge-blue); color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .copy-btn:hover { background: var(--blue-dark); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-left: 8px; }
+    .badge-required { background: #FEE2E2; color: #991B1B; }
+    .badge-optional { background: #E0E7FF; color: #3730A3; }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container nav-inner">
+      <a href="/" class="logo"><img src="/logo.svg" alt="" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;border-radius:8px;">Cal<span>bridge</span></a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="setup-page">
+    <div class="container">
+      <h1>Google OAuth Consent Screen</h1>
+      <p class="subtitle">Copy these values directly into <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank">Google Cloud Console &rarr;</a></p>
+
+      <div class="field-group">
+        <h3>App Name <span class="badge badge-required">Required</span></h3>
+        <div class="value">Calbridge</div>
+        <p class="note">Must be accurate and not misleading. Use your product name.</p>
+      </div>
+
+      <div class="field-group">
+        <h3>User Support Email <span class="badge badge-required">Required</span></h3>
+        <div class="value">support@mical.net</div>
+        <p class="note">Shown to users on the consent screen. Must be a real email you monitor.</p>
+      </div>
+
+      <div class="field-group">
+        <h3>App Logo <span class="badge badge-optional">Optional</span></h3>
+        <div class="value">https://mical.net/logo.svg</div>
+        <p class="note">Upload the SVG from <code>/public/logo.svg</code>. Google requires JPEG or PNG, so convert if needed (120x120px).</p>
+      </div>
+
+      <div class="field-group">
+        <h3>App Domain <span class="badge badge-optional">Optional</span></h3>
+        <div class="value">www.mical.net</div>
+      </div>
+
+      <div class="field-group">
+        <h3>Authorized Domains <span class="badge badge-required">Required</span></h3>
+        <div class="value">www.mical.net</div>
+        <div class="value" style="margin-top: 8px;">mical.net</div>
+        <p class="note">Add both in the "Audience" step.</p>
+      </div>
+
+      <div class="field-group">
+        <h3>Privacy Policy URL <span class="badge badge-required">Required</span></h3>
+        <div class="value">https://www.mical.net/privacy.html</div>
+      </div>
+
+      <div class="field-group">
+        <h3>Terms of Service URL <span class="badge badge-optional">Optional but recommended</span></h3>
+        <div class="value">https://www.mical.net/terms.html</div>
+      </div>
+
+      <div class="field-group">
+        <h3>Developer Contact Information <span class="badge badge-required">Required</span></h3>
+        <div class="value">jacob@salundo.com</div>
+        <p class="note">Or your preferred contact email. Google uses this for policy violations and security issues.</p>
+      </div>
+
+      <h2 style="margin-top: 48px; margin-bottom: 20px; font-size: 1.5rem;">Scopes to Add</h2>
+      <p style="color: var(--stone); margin-bottom: 20px;">In the "Scopes" step, add these:</p>
+
+      <div class="field-group">
+        <h3>Required Scopes</h3>
+        <div class="value">openid</div>
+        <div class="value" style="margin-top: 8px;">https://www.googleapis.com/auth/userinfo.email</div>
+        <div class="value" style="margin-top: 8px;">https://www.googleapis.com/auth/userinfo.profile</div>
+        <div class="value" style="margin-top: 8px;">https://www.googleapis.com/auth/calendar.readonly</div>
+        <div class="value" style="margin-top: 8px;">https://www.googleapis.com/auth/calendar.events</div>
+      </div>
+
+      <h2 style="margin-top: 48px; margin-bottom: 20px; font-size: 1.5rem;">Authorized Redirect URIs</h2>
+      <p style="color: var(--stone); margin-bottom: 20px;">In the "Credentials" tab, add this to your OAuth 2.0 Client ID:</p>
+
+      <div class="field-group">
+        <h3>Redirect URIs <span class="badge badge-required">Required — add both</span></h3>
+        <div class="value">https://www.mical.net/api/oauth/google/callback</div>
+        <div class="value" style="margin-top: 8px;">https://mical.net/api/oauth/google/callback</div>
+        <p class="note">www.mical.net is the canonical domain. mical.net redirects there. Add both for safety.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p><strong style="color: white;">Calbridge</strong> — Calendar infrastructure for modern professionals.</p>
+    </div>
+  </footer>
+</body>
+</html>
