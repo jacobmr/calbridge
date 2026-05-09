@@ -86,7 +86,7 @@ async function api(url, options = {}) {
 
   if (res.status === 401) {
     const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.href = `/api/oauth/google/init?return_to=${returnTo}`;
+    window.location.href = '/login';
     throw new Error('unauthorized');
   }
 
@@ -871,7 +871,7 @@ async function handleLogout() {
   try {
     await api('/api/auth/logout', { method: 'POST' });
   } catch (e) { /* ignore */ }
-  window.location.href = '/';
+  window.location.href = '/login';
 }
 
 // ─── Mobile Menu ───
