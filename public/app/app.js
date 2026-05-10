@@ -912,11 +912,18 @@ function renderSyncFlows() {
       </div>
     `;
   } else {
+    // Hide Priority column entirely if every flow has the default ord=0 —
+    // a column of identical zeros is pure noise. It reappears as soon as the
+    // user sets a non-zero priority on any flow.
+    const showPriority = syncFlows.some((f) => Number(f.ord) !== 0);
+    const priorityHeader = showPriority
+      ? '<th title="Lower runs first. Use this when one flow should run before another.">Priority</th>'
+      : "";
     listHtml = `
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Source</th><th></th><th>Target</th><th>Options</th><th>Enabled</th><th>Order</th><th>Actions</th></tr>
+            <tr><th>Source</th><th></th><th>Target</th><th>Options</th><th>Enabled</th>${priorityHeader}<th>Actions</th></tr>
           </thead>
           <tbody>
             ${syncFlows
@@ -933,7 +940,7 @@ function renderSyncFlows() {
                     <span class="toggle-slider"></span>
                   </label>
                 </td>
-                <td>${flow.ord}</td>
+                ${showPriority ? `<td>${flow.ord}</td>` : ""}
                 <td>
                   <div class="actions">
                     <button class="icon-btn" onclick="editSyncFlow('${escapeHtml(flow.id)}')" title="Edit">${icon("edit", 14)}</button>
@@ -982,8 +989,9 @@ function renderSyncFlows() {
             </select>
           </div>
           <div class="form-group">
-            <label for="sf-ord">Order</label>
+            <label for="sf-ord">Priority</label>
             <input type="number" id="sf-ord" value="0" min="0">
+            <p class="form-hint">Lower runs first. Leave at 0 unless flows need to chain.</p>
           </div>
         </div>
 
