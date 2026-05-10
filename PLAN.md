@@ -652,6 +652,47 @@ This is the same sync engine, but the target calendar belongs to a different use
 
 ## 10. Backlog (post-launch)
 
+- **Pricing & billing.** Currently no monetization. Initial thinking
+  to validate before building:
+
+  *Free tier* (acquisition):
+    - 1 connected calendar
+    - 1 sync flow
+    - 1 booking page (event type)
+    - No groups (or: 1 group, max 2 members)
+    - "Sent with MiCal" footer on booking pages
+
+  *Pro — ~$10/mo* (the consultant-with-5-clients case):
+    - Unlimited connected calendars
+    - Unlimited sync flows with all rules (busy/full, prefix, work-hours, etc.)
+    - Unlimited booking pages
+    - Custom domain / subdomain for booking pages
+    - Removed "Sent with MiCal" footer
+
+  *Family — ~$15/mo flat* (the Andersons case, NOT per-seat):
+    - Everything in Pro for the family owner
+    - Up to 5 members in one family group
+    - Each member gets their own Pro-equivalent personal scope
+    - Cross-tenant push between members
+    - This is the differentiated tier — Google Family / iCloud Family
+      don't bridge providers; we do
+
+  *Team — $8/seat/mo* (agencies, small teams):
+    - Pro features per seat
+    - Unlimited team groups + members
+    - Group-scoped booking pages ("book time with our team")
+    - Admin role + audit log
+
+  Open questions: trial length (14 days / 30 days / freemium forever?);
+  do we accept Stripe/Paddle (sales tax handling); do we offer annual
+  discounts (~15-20% standard); do families pay for invitees who only
+  use the family side and don't have personal Pro features.
+
+  Implementation when we get there: Stripe Checkout + customer portal
+  for self-serve, webhooks → `tenants.plan_*` columns, feature gates
+  read at request time. The DEK lets us encrypt billing identifiers
+  alongside everything else.
+
 - **Per-user subdomains for booking pages.** Today the public URL is
   `https://www.mical.net/book/?tenant=jmr&event=25`. Goal: serve the
   same pages at `https://jmr.mical.net/25` (or a custom domain like

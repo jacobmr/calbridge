@@ -865,8 +865,22 @@ function openInviteDialog() {
           body: JSON.stringify({ email, role }),
         });
         if (result.invite_url) {
-          // No MiCal account yet — show the link so the inviter can share it.
-          showInviteLinkResult(overlay, email, result.invite_url);
+          // No MiCal account yet. Two paths:
+          //   - email_sent: Resend delivered the invite → celebrate and close
+          //   - else: surface the link as a fallback (Resend not configured,
+          //     send failed, or inviter wants a backup channel)
+          if (result.email_sent) {
+            showSuccess(`Invitation emailed to ${email}.`);
+            close();
+            await loadGroupSettings();
+          } else {
+            showInviteLinkResult(
+              overlay,
+              email,
+              result.invite_url,
+              result.email_failure_reason,
+            );
+          }
         } else if (result.already_member) {
           showSuccess(`${email} is already a member.`);
           close();

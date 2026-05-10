@@ -402,6 +402,96 @@ nav {
   margin-right: auto;
 }
 
+/* Comparison table */
+.comparison {
+  background: var(--white);
+}
+
+.comparison-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--white);
+  margin: 0 auto;
+  max-width: 960px;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 14px 16px;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.comparison-table thead th {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--stone);
+  background: var(--cloud);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.comparison-table thead th.us {
+  color: var(--bridge-blue);
+  background: rgba(0, 194, 168, 0.08);
+}
+
+.comparison-table tbody th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--charcoal);
+  background: var(--white);
+}
+
+.comparison-table tbody td {
+  font-weight: 600;
+  color: var(--stone);
+}
+
+.comparison-table tbody td.us {
+  background: rgba(0, 194, 168, 0.04);
+  color: var(--bridge-blue);
+}
+
+.comparison-table .yes {
+  color: var(--success);
+}
+
+.comparison-table .partial {
+  color: var(--warning);
+}
+
+.comparison-table .no {
+  color: var(--stone);
+  opacity: 0.5;
+}
+
+.comparison-table tbody tr:last-child th,
+.comparison-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.comparison-footer {
+  text-align: center;
+  margin: 32px auto 0;
+  color: var(--stone);
+  font-size: 0.95rem;
+  max-width: 760px;
+  line-height: 1.6;
+}
+
+.comparison-footer strong {
+  color: var(--charcoal);
+}
+
 /* How it works */
 .how-it-works {
   background: var(--cloud);

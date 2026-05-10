@@ -6,13 +6,14 @@
 
 ## Infrastructure
 
-| Service | Provider | Status | URL |
-|---|---|---|---|
-| Hosting | Vercel (huddlehealth/calbridge) | ✅ Live | https://www.mical.net |
-| Database | Turso (libSQL) | ✅ Connected | libsql://calbridge-jacobr.aws-us-east-1.turso.io |
-| Secrets | SOPS + age (inventory repo) | ✅ Encrypted | `/data/dev/inventory/secrets/calbridge.enc.env` |
+| Service  | Provider                        | Status       | URL                                              |
+| -------- | ------------------------------- | ------------ | ------------------------------------------------ |
+| Hosting  | Vercel (huddlehealth/calbridge) | ✅ Live      | https://www.mical.net                            |
+| Database | Turso (libSQL)                  | ✅ Connected | libsql://calbridge-jacobr.aws-us-east-1.turso.io |
+| Secrets  | SOPS + age (inventory repo)     | ✅ Encrypted | `/data/dev/inventory/secrets/calbridge.enc.env`  |
 
 ### Domains
+
 - **Canonical:** `https://www.mical.net`
 - **Redirect:** `https://mical.net` → `https://www.mical.net`
 
@@ -22,21 +23,40 @@
 
 All secrets are stored in the inventory repo and pushed to Vercel production.
 
-| Variable | Status | Source |
-|---|---|---|
-| `TURSO_DATABASE_URL` | ✅ Set | Turso dashboard |
-| `TURSO_AUTH_TOKEN` | ✅ Set | Turso CLI (`turso db tokens create calbridge`) |
-| `CALBRIDGE_DEK` | ✅ Generated | `openssl rand -base64 32` |
-| `SESSION_SIGNING_KEY` | ✅ Generated | `openssl rand -base64 32` |
-| `APP_BASE_URL` | ✅ Set | `https://www.mical.net` |
-| `CRON_SECRET` | ✅ Generated | `openssl rand -base64 32` |
-| `INTERNAL_DISPATCH_HMAC` | ✅ Generated | `openssl rand -base64 32` |
-| `GOOGLE_CLIENT_ID` | ❌ Waiting | Google Cloud Console |
-| `GOOGLE_CLIENT_SECRET` | ❌ Waiting | Google Cloud Console |
-| `GOOGLE_REDIRECT_URI` | ✅ Set | `https://www.mical.net/api/oauth/google/callback` |
-| `MS_CLIENT_ID` | ❌ Empty | Future (Microsoft OAuth) |
-| `MS_CLIENT_SECRET` | ❌ Empty | Future (Microsoft OAuth) |
-| `MS_REDIRECT_URI` | ✅ Set | `https://www.mical.net/api/oauth/microsoft/callback` |
+| Variable                 | Status       | Source                                               |
+| ------------------------ | ------------ | ---------------------------------------------------- |
+| `TURSO_DATABASE_URL`     | ✅ Set       | Turso dashboard                                      |
+| `TURSO_AUTH_TOKEN`       | ✅ Set       | Turso CLI (`turso db tokens create calbridge`)       |
+| `CALBRIDGE_DEK`          | ✅ Generated | `openssl rand -base64 32`                            |
+| `SESSION_SIGNING_KEY`    | ✅ Generated | `openssl rand -base64 32`                            |
+| `APP_BASE_URL`           | ✅ Set       | `https://www.mical.net`                              |
+| `CRON_SECRET`            | ✅ Generated | `openssl rand -base64 32`                            |
+| `INTERNAL_DISPATCH_HMAC` | ✅ Generated | `openssl rand -base64 32`                            |
+| `GOOGLE_CLIENT_ID`       | ❌ Waiting   | Google Cloud Console                                 |
+| `GOOGLE_CLIENT_SECRET`   | ❌ Waiting   | Google Cloud Console                                 |
+| `GOOGLE_REDIRECT_URI`    | ✅ Set       | `https://www.mical.net/api/oauth/google/callback`    |
+| `MS_CLIENT_ID`           | ❌ Empty     | Future (Microsoft OAuth)                             |
+| `MS_CLIENT_SECRET`       | ❌ Empty     | Future (Microsoft OAuth)                             |
+| `MS_REDIRECT_URI`        | ✅ Set       | `https://www.mical.net/api/oauth/microsoft/callback` |
+| `RESEND_API_KEY`         | ⚠️ Optional  | Resend dashboard. Without it, group invites fall back to copy-link. |
+| `EMAIL_FROM`             | ⚠️ Optional  | e.g. `MiCal <invites@mical.net>` — domain must be verified in Resend. Defaults to `MiCal <noreply@mical.net>`. |
+
+### Resend setup (one-time)
+
+To enable email-sent group invitations:
+
+1. Sign up at https://resend.com and create an API key.
+2. Verify your sending domain (`mical.net`) in Resend — add their DKIM /
+   SPF / DMARC TXT records to your DNS.
+3. Add `RESEND_API_KEY` (and optionally `EMAIL_FROM`) to Vercel
+   production env + the SOPS-encrypted `secrets/calbridge.enc.env`.
+4. Confirm with a real invite — `lib/email.mjs` returns `{ sent: true, id }`
+   on success; the API response includes `email_sent: true`.
+
+Without these env vars, `lib/email.mjs` returns
+`{ sent: false, reason: 'not_configured' }` and the invite UI falls back
+to showing a copy-the-link state. Same fallback if Resend returns a
+4xx/5xx — never fatal.
 
 ### Managing Secrets
 
@@ -64,23 +84,27 @@ done
 ## API Endpoints
 
 ### OAuth
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/oauth/google/init` | Starts Google OAuth flow |
-| `GET` | `/api/oauth/google/callback` | Handles Google OAuth callback |
+
+| Method | Path                         | Description                   |
+| ------ | ---------------------------- | ----------------------------- |
+| `GET`  | `/api/oauth/google/init`     | Starts Google OAuth flow      |
+| `GET`  | `/api/oauth/google/callback` | Handles Google OAuth callback |
 
 ### Auth
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/auth/me` | Returns current user (requires session) |
-| `POST` | `/api/auth/logout` | Destroys session and clears cookie |
+
+| Method | Path               | Description                             |
+| ------ | ------------------ | --------------------------------------- |
+| `GET`  | `/api/auth/me`     | Returns current user (requires session) |
+| `POST` | `/api/auth/logout` | Destroys session and clears cookie      |
 
 ### Health
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/health` | Health check + DB connectivity |
+
+| Method | Path          | Description                    |
+| ------ | ------------- | ------------------------------ |
+| `GET`  | `/api/health` | Health check + DB connectivity |
 
 ### Scopes Requested (Google)
+
 - `openid`
 - `https://www.googleapis.com/auth/userinfo.email`
 - `https://www.googleapis.com/auth/userinfo.profile`
@@ -91,13 +115,13 @@ done
 
 ## Static Pages
 
-| Page | File | Live URL |
-|---|---|---|
-| Landing page | `public/index.html` | https://www.mical.net/ |
-| Privacy Policy | `public/privacy.html` | https://www.mical.net/privacy |
-| Terms of Service | `public/terms.html` | https://www.mical.net/terms |
-| OAuth Setup Ref | `public/oauth-setup.html` | https://www.mical.net/oauth-setup |
-| Logo | `public/logo.svg` | https://www.mical.net/logo.svg |
+| Page             | File                      | Live URL                          |
+| ---------------- | ------------------------- | --------------------------------- |
+| Landing page     | `public/index.html`       | https://www.mical.net/            |
+| Privacy Policy   | `public/privacy.html`     | https://www.mical.net/privacy     |
+| Terms of Service | `public/terms.html`       | https://www.mical.net/terms       |
+| OAuth Setup Ref  | `public/oauth-setup.html` | https://www.mical.net/oauth-setup |
+| Logo             | `public/logo.svg`         | https://www.mical.net/logo.svg    |
 
 Clean URLs are enabled via `vercel.json` — all `.html` extensions are stripped automatically.
 
@@ -106,18 +130,20 @@ Clean URLs are enabled via `vercel.json` — all `.html` extensions are stripped
 ## Google OAuth Configuration
 
 ### OAuth Consent Screen
-| Field | Value |
-|---|---|
-| App name | `MiCal` |
-| User support email | `support@mical.net` |
-| App logo | `https://www.mical.net/logo.svg` (convert to PNG 120×120) |
-| App domain | `www.mical.net` |
-| Authorized domains | `www.mical.net`, `mical.net` |
-| Privacy Policy URL | `https://www.mical.net/privacy` |
-| Terms of Service URL | `https://www.mical.net/terms` |
-| Developer contact | `jacob@salundo.com` |
+
+| Field                | Value                                                     |
+| -------------------- | --------------------------------------------------------- |
+| App name             | `MiCal`                                                   |
+| User support email   | `support@mical.net`                                       |
+| App logo             | `https://www.mical.net/logo.svg` (convert to PNG 120×120) |
+| App domain           | `www.mical.net`                                           |
+| Authorized domains   | `www.mical.net`, `mical.net`                              |
+| Privacy Policy URL   | `https://www.mical.net/privacy`                           |
+| Terms of Service URL | `https://www.mical.net/terms`                             |
+| Developer contact    | `jacob@salundo.com`                                       |
 
 ### Authorized Redirect URIs
+
 Add both to your OAuth 2.0 Client ID:
 
 ```
@@ -158,6 +184,7 @@ OAuth tests use a local SQLite file (`file:./.test-calbridge.db`) and mock Googl
 ## Branding
 
 See `docs/BRANDING.md` for:
+
 - Positioning, tagline, and elevator pitch
 - Target audience and value propositions
 - Color palette and typography

@@ -19,6 +19,7 @@ import {
   requireRole,
   sendError,
 } from "../../../lib/groups.mjs";
+import { sendGroupInviteEmail } from "../../../lib/email.mjs";
 
 const INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -134,6 +135,29 @@ export default async function handler(req, res) {
         });
       }
       const inviteUrl = `${appBaseUrl()}/login?invite=${encodeURIComponent(token)}`;
+
+      // Look up group name + type for the email body. We already loaded the
+      // membership above, but loadGroupForUser only returned membership.
+      // Re-query the group itself — cheap, one round-trip.
+      const gRow = await db.execute({
+        sql: "SELECT name, type FROM groups WHERE id = ? LIMIT 1",
+        args: [groupId],
+      });
+      const group = gRow.rows[0] || { name: "MiCal group", type: "family" };
+
+      // Try to email the invite. Failure (no API key, network, Resend
+      // 4xx/5xx) is non-fatal — we still return invite_url so the
+      // inviter can copy/share it manually. The response signals which
+      // happened so the UI can decide what to show.
+      const emailResult = await sendGroupInviteEmail({
+        toEmail: email,
+        inviterName: user.display_name,
+        inviterEmail: user.email,
+        groupName: group.name,
+        groupType: group.type,
+        inviteUrl,
+      });
+
       res.statusCode = 201;
       res.setHeader("content-type", "application/json");
       res.end(
@@ -142,6 +166,10 @@ export default async function handler(req, res) {
           status: "pending_signup",
           email,
           role,
+          email_sent: emailResult.sent,
+          email_failure_reason: emailResult.sent
+            ? undefined
+            : emailResult.reason,
           invite_url: inviteUrl,
           expires_at: now + INVITE_TTL_MS,
         }),
