@@ -29,9 +29,11 @@ verification rules described below.
 | `https://www.googleapis.com/auth/calendar.readonly` | List calendars and read events for the merged Schedule view, sync flows, poll free/busy pre-check, and group availability. |
 | `https://www.googleapis.com/auth/calendar.events` | Create / update / delete events when a booking comes in or a poll winner is scheduled. Also writes the sync-target events. |
 
-Both calendar scopes are classified by Google as **restricted** (not
-just "sensitive"). They trigger the unverified-app warning until the
-app goes through Google's verification review.
+Both calendar scopes are classified by Google as **sensitive** (the
+middle tier, between non-sensitive identity scopes and the heaviest
+"restricted" tier reserved for Gmail and Drive). Sensitive scopes
+trigger the unverified-app warning until verification, but the
+verification bar is far lighter than restricted — see below.
 
 We do **not** request the broader `auth/calendar` scope. `readonly` +
 `events` together cover everything we do and avoid the "manage all your
@@ -114,10 +116,10 @@ The same client ID + secret end up in Vercel as `GOOGLE_CLIENT_ID` and
 
 States:
 - **Testing**: only test users (allowlisted by email) can OAuth at all.
-  Cap of 100 test users. Restricted scopes can be requested without
+  Cap of 100 test users. Sensitive scopes can be requested without
   verification. Tokens expire after 7 days, forcing re-auth.
 - **In production**: anyone with a Google account can OAuth. Without
-  verification on restricted scopes, users see the "Google hasn't
+  verification on sensitive scopes, users see the "Google hasn't
   verified this app" warning and there's a hard 100-token-per-week
   issuance cap.
 
@@ -130,38 +132,51 @@ Other users should be seeing the warning until verification completes.
 
 **APIs & Services → OAuth consent screen → Prepare for verification**
 
-For restricted scopes (calendar.readonly, calendar.events), this
-requires:
+For our sensitive scopes (contacts.readonly, calendar.readonly,
+calendar.events), this requires:
 
 - App home page, privacy policy, ToS pages reachable on
   `mical.net` (already in place)
-- A YouTube demo video (~2-3 min) showing what we do with each scope
-- A CASA Tier 2 security assessment (vendor-conducted; ~$500-$1500
-  one-time, periodic re-attestation)
+- Domain verification of `mical.net` in Google Search Console
+  (TXT record on DNS — one-time)
+- An unlisted YouTube demo video (~90 s for contacts only, up to
+  ~3 min if covering all three sensitive scopes in one recording)
+
+There is **no CASA security assessment** in our path. CASA is only
+required for *restricted* scopes (Gmail, Drive, Chat), and we don't
+use any of those.
 
 Without verification:
 - The "unverified app" screen scares away most non-technical users
 - We hit the 100-tokens-per-week cap once we have any volume
 
-Verification is a real cost, but it's required before we can scale
-past the early-adopter phase. Worth doing once we're confident in
-product-market fit.
+Verification is a real but manageable step — domain TXT + a short
+video + the submission form. Worth doing once the contacts feature is
+live so the video can show real usage. No external vendors, no
+multi-thousand-dollar security assessment, no months-long review.
 
 ### Scope classifications and what each demands
 
 Google sorts scopes into tiers, and each tier has a different
-verification ceremony:
+verification ceremony. As shown in the Cloud Console's Data Access
+view, the classification for our scope set is:
 
 | Tier | What we use here | What verification requires |
 |---|---|---|
-| Basic (`openid`, `email`, `profile`) | Identity scopes | Nothing |
-| Sensitive (`contacts.readonly`) | The contacts scope we're adding for autocomplete | Domain verification + privacy policy + an unlisted YouTube demo |
-| Restricted (`calendar.readonly`, `calendar.events`) | Our two calendar scopes | All of the above + a CASA Tier 2 security assessment ($500-$1500, external vendor) |
+| Non-sensitive (`openid`, `userinfo.email`, `userinfo.profile`) | Identity scopes | Nothing |
+| Sensitive (`contacts.readonly`, `calendar.readonly`, `calendar.events`) | Contacts + both calendar scopes | Domain verification (Search Console TXT record on `mical.net`) + privacy policy & ToS reachable on the same domain + an unlisted YouTube demo |
+| Restricted (none for us) | Reserved for Gmail/Drive/Chat scopes; we don't use any | All of the sensitive bar plus a CASA Tier 2/3 security assessment |
 
-In practice as of this writing, Google was only asking for the
-YouTube demo when contacts was added — the calendar scopes weren't
-gating verification. So the video scope is **the contacts feature
-only**, not a full app demo.
+We sit entirely in the sensitive tier. **There is no CASA assessment
+in our path.** The "scary" verification cost (~$500-1500 + months of
+back-and-forth) is the restricted-tier bar — not ours.
+
+In practice Google triggered the verification flow when
+`contacts.readonly` was declared. The video can be focused on contacts
+alone, OR it can cover all three sensitive scopes in one recording —
+your call. A combined video is slightly more work but means one
+submission instead of two if Google ever asks for one on the calendar
+scopes later.
 
 ### Verification YouTube demo (contacts) — shot list
 
