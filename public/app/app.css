@@ -551,6 +551,13 @@ body {
   flex-wrap: wrap;
 }
 
+.schedule-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .legend-chip {
   display: inline-flex;
   align-items: center;
@@ -1007,6 +1014,62 @@ body {
 
 .toggle-row:hover {
   color: var(--charcoal);
+}
+
+/* "Why 25/50?" rationale on the Event Types empty state. Collapsed by
+   default — curious users open it; everyone else sees a clean CTA. */
+.rationale {
+  margin-top: 16px;
+  text-align: left;
+  max-width: 560px;
+  width: 100%;
+}
+
+.rationale summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--bridge-blue);
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.rationale summary::-webkit-details-marker {
+  display: none;
+}
+
+.rationale summary::before {
+  content: "▸ ";
+  font-size: 0.75rem;
+}
+
+.rationale[open] summary::before {
+  content: "▾ ";
+}
+
+.rationale summary:hover {
+  background: var(--cloud);
+}
+
+.rationale-body {
+  padding: 8px 12px 4px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--charcoal);
+}
+
+.rationale-body p {
+  margin-bottom: 10px;
+}
+
+.rationale-body p:last-child {
+  margin-bottom: 0;
+}
+
+.rationale-body a {
+  color: var(--bridge-blue);
 }
 
 .account-card {

@@ -1186,11 +1186,81 @@ function renderGroupSchedule() {
     <div class="card">
       <div class="card-header">
         <div class="card-title">Next 14 days</div>
-        <div class="member-legend">${memberLegend}</div>
+        <div class="schedule-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openScheduleSubscribe()" title="Subscribe in your calendar app">
+            ${icon("calendar", 14)} Subscribe
+          </button>
+          <div class="member-legend">${memberLegend}</div>
+        </div>
       </div>
       ${agendaHtml}
     </div>
   `;
+}
+
+// Subscribe modal — fetches the signed feed URL and shows webcal:// + https
+// flavors with copy buttons. Subscribe URL opens calendar apps; download URL
+// is the one-shot iCal download.
+async function openScheduleSubscribe() {
+  if (!currentGroupId) return;
+  let urls;
+  try {
+    urls = await api(`/api/groups/${currentGroupId}/feed-url`);
+  } catch (err) {
+    showError(err.message);
+    return;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open";
+  overlay.innerHTML = `
+    <div class="modal-dialog booking-url-dialog">
+      <div class="modal-header">
+        <h3>Subscribe in your calendar</h3>
+        <button class="modal-close" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p>One link, auto-updates as plans change. The events you can already see in this Schedule will appear in your usual calendar app — alongside everything else.</p>
+        <p><strong>Open with your calendar app:</strong></p>
+        <div class="invite-link-row">
+          <a id="sub-link" class="btn btn-primary btn-block" href="">Subscribe now</a>
+        </div>
+        <p class="form-hint">Tapping the button opens Google Calendar / Apple Calendar / Outlook in subscribe mode. If your app doesn't open automatically, copy the link below and add it as a "calendar from URL".</p>
+        <div class="invite-link-row" style="margin-top:16px">
+          <input type="text" id="sub-url" readonly value="">
+          <button class="btn btn-secondary btn-sm" id="sub-copy">Copy</button>
+        </div>
+        <p class="form-hint muted">Privacy: this link is unguessable but isn't password-protected. Anyone who has it can read what's on this Schedule. You can rotate it by removing yourself from the group and rejoining (rare but possible).</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" type="button" id="sub-done">Done</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+  };
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  overlay.querySelector("#sub-done").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+
+  overlay.querySelector("#sub-link").href = urls.subscribe_url;
+  overlay.querySelector("#sub-url").value = urls.subscribe_url;
+  overlay.querySelector("#sub-copy").addEventListener("click", async () => {
+    const input = overlay.querySelector("#sub-url");
+    try {
+      await navigator.clipboard.writeText(input.value);
+    } catch {
+      input.select();
+      document.execCommand("copy");
+    }
+    showSuccess("Link copied.");
+  });
 }
 
 function bucketEventsByDay(events) {
@@ -2610,10 +2680,19 @@ function renderEventTypes() {
       <div class="empty-state">
         ${illustration("list")}
         <h3>Set up a booking page</h3>
-        <p>The smartest meetings end before the hour. We'll create two booking pages — 25 minutes (with a 5-min buffer) and 50 minutes (with 10) — so back-to-back meetings actually leave room to breathe.</p>
+        <p>We'll create two — 25 minutes and 50 minutes — with built-in buffers so back-to-back meetings actually leave room to breathe.</p>
         <div class="empty-state-cta" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
           ${defaultsCta}
         </div>
+        <details class="rationale">
+          <summary>Why 25 and 50, not 30 and 60?</summary>
+          <div class="rationale-body">
+            <p><strong>The 5-minute "between meetings" never actually materializes.</strong> A 30-minute meeting consumes 30 minutes — the host wraps up at the top of the hour, the next meeting starts immediately, the bathroom break never happens. By scheduling 25-minute meetings with a built-in 5-minute buffer (50-minute with 10), the recovery time is structural rather than aspirational.</p>
+            <p><strong>The brain agrees.</strong> Microsoft's EEG research found that beta-wave stress accumulates linearly across back-to-back meetings; even short breaks between them flatten the curve. Focused-attention research also shows group conversations decline in productivity around the 20–30 minute mark — keeping discussions inside that "golden window" beats letting them sprawl to fill the hour.</p>
+            <p><strong>And there's Parkinson's law.</strong> A 15-minute decision scheduled for 60 minutes will somehow consume the full hour. Tighter time constraints force sharper conversations.</p>
+            <p class="muted">More: <a href="https://docnotes.net/2026/05/08/why-i-schedule-25-minute-meetings/" target="_blank" rel="noopener">Why I schedule 25-minute meetings</a>.</p>
+          </div>
+        </details>
         <p class="muted" style="margin-top:8px">Or scroll down to set up a custom one.</p>
       </div>
     `;
@@ -2632,7 +2711,7 @@ function renderEventTypes() {
             ${eventTypes
               .map((et) => {
                 const url = tenantSlug
-                  ? `${baseOrigin}/book/?host=${encodeURIComponent(tenantSlug)}&event=${encodeURIComponent(et.slug)}`
+                  ? `${baseOrigin}/b/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(et.slug)}`
                   : "";
                 return `
               <tr data-id="${escapeHtml(et.id)}">
@@ -2640,7 +2719,7 @@ function renderEventTypes() {
                 <td>
                   ${
                     url
-                      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="booking-url-cell" title="${escapeHtml(url)}">/book/…/${escapeHtml(et.slug)}</a>
+                      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="booking-url-cell" title="${escapeHtml(url)}">/b/${escapeHtml(tenantSlug)}/${escapeHtml(et.slug)}</a>
                        <button class="icon-btn" title="Copy URL" onclick="copyToClipboard('${escapeHtml(url)}')">${icon("check", 14)}</button>`
                       : `<span class="muted">—</span>`
                   }
@@ -3071,7 +3150,7 @@ function showBookingUrlModal(eventType) {
   const tenantSlug = currentUser?.tenant_slug;
   if (!tenantSlug || !eventType?.slug) return;
   const base = window.location.origin;
-  const url = `${base}/book/?host=${encodeURIComponent(tenantSlug)}&event=${encodeURIComponent(eventType.slug)}`;
+  const url = `${base}/b/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(eventType.slug)}`;
 
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay open";
@@ -3121,6 +3200,13 @@ function showBookingUrlModal(eventType) {
 function editEventType(id) {
   editingEventTypeId = id;
   renderEventTypes();
+  // Form lives below the table — without scrolling, "edit" looked like a
+  // no-op to anyone scrolled to the top of the list. requestAnimationFrame
+  // gives the new DOM a beat to lay out before we measure.
+  requestAnimationFrame(() => {
+    const form = document.getElementById("event-type-form");
+    if (form) form.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function cancelEditEventType() {

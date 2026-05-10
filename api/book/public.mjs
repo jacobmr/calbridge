@@ -1,5 +1,6 @@
 import { randomUUID, randomBytes } from "node:crypto";
 import { getDb } from "../../db/client.mjs";
+import { getProviderClientForCalendar } from "../../lib/providers/index.mjs";
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -18,21 +19,47 @@ function readBody(req) {
   });
 }
 
-function dayBit(date) {
-  // JS getDay: 0=Sun, 1=Mon... mask bits: 0=Mon, 1=Tue...6=Sun
-  return 1 << ((date.getDay() + 6) % 7);
+// Extract weekday + hour + minute in a specific IANA timezone. Vercel
+// functions run in UTC, so date.getHours() / getDay() return UTC values
+// — useless for "is this within the host's 9–5". This function asks
+// Intl.DateTimeFormat for the wall-clock components in the tenant's tz.
+function localParts(date, timeZone) {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(date);
+  let weekday, hour, minute;
+  for (const p of parts) {
+    if (p.type === "weekday") weekday = p.value;
+    else if (p.type === "hour") hour = Number(p.value);
+    else if (p.type === "minute") minute = Number(p.value);
+  }
+  // hour "24" is what Intl emits for midnight in some locales — normalize.
+  if (hour === 24) hour = 0;
+  // weekday "Mon"…"Sun" → bit index 0..6 (Mon=0)
+  const dayIndex =
+    { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[weekday] ?? 0;
+  return { dayIndex, hour, minute };
 }
 
-function isWithinWorkHours(date, workHoursJson) {
+function dayBit(date, tz) {
+  return 1 << localParts(date, tz).dayIndex;
+}
+
+function isWithinWorkHours(date, workHoursJson, tz) {
   try {
     const wh = JSON.parse(workHoursJson);
     if (!wh.start || !wh.end) return true;
-    const hm = (d) => d.getHours() * 60 + d.getMinutes();
+    const { hour, minute } = localParts(date, tz);
+    const t = hour * 60 + minute;
     const parse = (s) => {
       const [h, m] = s.split(":").map(Number);
       return h * 60 + m;
     };
-    const t = hm(date);
     return t >= parse(wh.start) && t <= parse(wh.end);
   } catch {
     return true;
@@ -55,7 +82,7 @@ async function getPublicEventType(req, res) {
 
   const db = getDb();
   const tenantRow = await db.execute({
-    sql: "SELECT id, name FROM tenants WHERE slug = ? AND enabled = 1",
+    sql: "SELECT id, name, default_tz FROM tenants WHERE slug = ? AND enabled = 1",
     args: [hostSlug],
   });
   if (!tenantRow.rows[0]) {
@@ -81,6 +108,11 @@ async function getPublicEventType(req, res) {
     // host_name is what the booking page sidebar shows ("Book with Jacob")
     // — the agent flagged the hardcoded "MiCal" string this replaces.
     host_name: tenantRow.rows[0].name,
+    // Tenant's display timezone — the booking page generates time slots
+    // in this zone so 9am means the host's 9am. Without it the client
+    // generates slots in the visitor's zone, which the server then
+    // rejected as "outside work hours" (the bug we just fixed).
+    host_tz: tenantRow.rows[0].default_tz || "America/Los_Angeles",
     name: ev.name,
     duration_min: ev.duration_min,
     buffer_min: ev.buffer_min,
@@ -120,7 +152,7 @@ async function createPublicBooking(req, res) {
 
   const db = getDb();
   const tenantRow = await db.execute({
-    sql: "SELECT id FROM tenants WHERE slug = ? AND enabled = 1",
+    sql: "SELECT id, default_tz FROM tenants WHERE slug = ? AND enabled = 1",
     args: [hostSlug],
   });
   if (!tenantRow.rows[0]) {
@@ -130,6 +162,7 @@ async function createPublicBooking(req, res) {
     return;
   }
   const tenantId = tenantRow.rows[0].id;
+  const tenantTz = tenantRow.rows[0].default_tz || "America/Los_Angeles";
 
   const evRow = await db.execute({
     sql: "SELECT * FROM event_types WHERE tenant_id = ? AND slug = ? AND enabled = 1",
@@ -180,17 +213,18 @@ async function createPublicBooking(req, res) {
     return;
   }
 
-  // weekdays_mask check
+  // weekdays_mask + work_hours checks both run in the host's timezone, not
+  // the server's UTC. Without this, a 12pm-ET booking arrived as 16:00-UTC
+  // and either passed/failed the host's stated 9-5 unpredictably.
   const mask = Number(ev.weekdays_mask || 31);
-  if ((mask & dayBit(startDate)) === 0) {
+  if ((mask & dayBit(startDate, tenantTz)) === 0) {
     res.statusCode = 400;
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: "day not available" }));
     return;
   }
 
-  // work_hours check
-  if (!isWithinWorkHours(startDate, ev.work_hours_json)) {
+  if (!isWithinWorkHours(startDate, ev.work_hours_json, tenantTz)) {
     res.statusCode = 400;
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: "time not within work hours" }));
@@ -201,6 +235,66 @@ async function createPublicBooking(req, res) {
   const cancelToken = randomBytes(16).toString("base64url");
   const durationMin = Number(ev.duration_min);
   const endMs = Number(start_ms) + durationMin * 60000;
+
+  // Create the actual calendar event on the host's target calendar. Without
+  // this, the booking only existed as a row in our DB — the host wouldn't
+  // see it on their actual Google/Outlook calendar. We do this BEFORE
+  // inserting the booking row so that if the provider rejects (auth lapse,
+  // calendar gone), we don't leave an orphan booking. The error path
+  // surfaces the provider message.
+  let providerEventId = null;
+  try {
+    const calRow = await db.execute({
+      sql: "SELECT * FROM calendars WHERE id = ?",
+      args: [ev.target_calendar_id],
+    });
+    const targetCal = calRow.rows[0];
+    if (!targetCal) throw new Error("event target calendar not found");
+    const client = await getProviderClientForCalendar(targetCal);
+    if (!client.capabilities.canWrite) {
+      throw new Error("event target calendar is read-only");
+    }
+    const startISO = new Date(Number(start_ms)).toISOString();
+    const endISO = new Date(endMs).toISOString();
+    const attendees = attendee_email
+      ? [{ email: attendee_email, displayName: attendee_name || undefined }]
+      : undefined;
+    const eventPayload = {
+      summary: subject || `${ev.name} with ${attendee_name || "guest"}`,
+      description: notes || "",
+      start: { dateTime: startISO, timeZone: tenantTz },
+      end: { dateTime: endISO, timeZone: tenantTz },
+      attendees,
+    };
+    // Auto-attach Google Meet when the host picked location_mode="meet" and
+    // the target is Google. Google silently drops conferenceData unless the
+    // URL has conferenceDataVersion=1 — that's wired in lib/google.mjs.
+    const provider = String(targetCal.provider).toLowerCase();
+    if (ev.location_mode === "meet" && provider === "google") {
+      eventPayload.conferenceData = {
+        createRequest: {
+          requestId: randomUUID(),
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      };
+    }
+    const created = await client.createEvent(
+      String(targetCal.provider).toLowerCase() === "ics"
+        ? "ics-feed"
+        : targetCal.provider_calendar_id,
+      eventPayload,
+    );
+    providerEventId = created?.id || null;
+  } catch (e) {
+    res.statusCode = 502;
+    res.setHeader("content-type", "application/json");
+    res.end(
+      JSON.stringify({
+        error: `couldn't create the event on the host's calendar: ${e.message || String(e)}`,
+      }),
+    );
+    return;
+  }
 
   await db.execute({
     sql: `INSERT INTO bookings (
@@ -213,14 +307,14 @@ async function createPublicBooking(req, res) {
       tenantId,
       ev.id,
       cancelToken,
-      null,
+      providerEventId,
       attendee_email || null,
       attendee_name || null,
       subject || null,
       notes || null,
       Number(start_ms),
       endMs,
-      "pending",
+      "confirmed",
       now,
       null,
     ],

@@ -2,5 +2,15 @@
   "cleanUrls": true,
   "functions": {
     "api/**/*.mjs": { "maxDuration": 60 }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/b/:host/:event",
+      "destination": "/book/?host=:host&event=:event"
+    },
+    {
+      "source": "/api/groups/:id/feed.ics",
+      "destination": "/api/groups/:id/feed"
+    }
+  ]
 }

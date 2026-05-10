@@ -14,6 +14,7 @@
  */
 
 import { getDb } from "../../db/client.mjs";
+import { getProviderClientForCalendar } from "../../lib/providers/index.mjs";
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
@@ -104,6 +105,42 @@ async function postHandler(req, res) {
     return;
   }
   const db = getDb();
+
+  // Pull the booking + its target calendar so we can delete the matching
+  // provider event too. If we don't, cancelling here leaves the meeting on
+  // the host's calendar — they cancel via MiCal, then their attendee shows
+  // up at the original time anyway. We treat provider-delete failure as
+  // non-fatal; the booking row still flips to cancelled.
+  const full = await db.execute({
+    sql: `SELECT b.id, b.provider_event_id, b.event_type_id,
+                 et.target_calendar_id
+            FROM bookings b
+            JOIN event_types et ON et.id = b.event_type_id
+           WHERE b.cancel_token = ? AND b.status != 'cancelled'
+           LIMIT 1`,
+    args: [token],
+  });
+  const bk = full.rows[0];
+  if (bk?.provider_event_id && bk.target_calendar_id) {
+    try {
+      const cr = await db.execute({
+        sql: "SELECT * FROM calendars WHERE id = ?",
+        args: [bk.target_calendar_id],
+      });
+      const cal = cr.rows[0];
+      if (cal) {
+        const client = await getProviderClientForCalendar(cal);
+        const providerCalId =
+          String(cal.provider).toLowerCase() === "ics"
+            ? "ics-feed"
+            : cal.provider_calendar_id;
+        await client.deleteEvent(providerCalId, bk.provider_event_id);
+      }
+    } catch {
+      // Best-effort; the booking row update below is the source of truth.
+    }
+  }
+
   await db.execute({
     sql: `UPDATE bookings
              SET status = 'cancelled', cancelled_at = ?
