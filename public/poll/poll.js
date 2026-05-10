@@ -77,7 +77,12 @@ function renderViewerBox() {
     signedAs.textContent = `Signed in as ${state.viewer.email}`;
     show(signedAs);
     // No need for the name/email fields — we have them from the session.
+    // Critically, clear the `required` attrs too: browsers refuse to submit
+    // a form when a required input is in a display:none subtree, and the
+    // failure is silent (the click does nothing — no toast, no console).
     hide(anonFields);
+    $("#name").required = false;
+    $("#email").required = false;
   } else {
     // Anchor the OAuth links to bring the user back here after sign-in.
     const here = `/poll/${encodeURIComponent(state.token)}`;
