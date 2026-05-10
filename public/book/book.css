@@ -298,6 +298,23 @@ body {
   font-weight: 500;
 }
 
+/* Cross-TZ awareness banner — shown only when visitor and host differ.
+   Subtle; doesn't shout. */
+.tz-banner {
+  font-size: 0.8rem;
+  color: var(--stone);
+  background: rgba(15, 76, 129, 0.05);
+  border-left: 2px solid var(--bridge-blue);
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  line-height: 1.45;
+}
+
+.tz-banner.hidden {
+  display: none;
+}
+
 .time-slots {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

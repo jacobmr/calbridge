@@ -75,21 +75,98 @@ function isDayAllowed(d, mask) {
   return (mask & dayBit(d)) !== 0;
 }
 
-function generateSlots(date, durationMin, workHours) {
+// ─── Cross-TZ aware slot generation ────────────────────────────────────────
+//
+// The booking page lives in two timezones at once:
+//   - Visitor local TZ — what the booker sees ("9am" means their 9am)
+//   - Host TZ          — what the event-type's work hours mean ("9am" means
+//                        the host's 9am, regardless of where the booker is)
+//
+// Without this awareness, a visitor in PT booking with a host in ET would
+// be offered slots like "9am PT" (= noon ET) for a host whose 9-5 ET means
+// 6am-2pm PT — slots that the server then rejected as outside work hours.
+// Now: the slot grid walks the host's work-hour wall clock, produces UTC
+// instants, and the page displays each in the visitor's local TZ.
+
+const VISITOR_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+/**
+ * Convert a wall-clock time in `tz` to a UTC ms instant. Works by computing
+ * what `naiveUTC` looks like when re-interpreted in `tz`, measuring the
+ * delta against the desired wall clock, and applying that as the offset.
+ * Fine for non-DST-transition wall times; transitions are rare and the
+ * server validates anyway.
+ */
+function tzWallToUtc(year, month, day, hour, minute, tz) {
+  const naive = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const parts = fmt.formatToParts(new Date(naive));
+  const get = (t) => Number(parts.find((p) => p.type === t)?.value);
+  let h = get("hour");
+  if (h === 24) h = 0;
+  const tzWall = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    h,
+    get("minute"),
+    0,
+  );
+  const offset = tzWall - naive;
+  return naive - offset;
+}
+
+/**
+ * Produce 30-minute booking slots for `calendarDate` (a JS Date with the
+ * desired host calendar day in its y/m/d), using the host's work hours
+ * in `hostTz`. Returns an array of Date objects (UTC instants); the caller
+ * displays them in visitor-local time.
+ */
+function generateSlots(calendarDate, durationMin, workHours, hostTz) {
   const slots = [];
   const [sh, sm] = workHours.start.split(":").map(Number);
   const [eh, em] = workHours.end.split(":").map(Number);
-  let cursor = new Date(date);
-  cursor.setHours(sh, sm, 0, 0);
-  const end = new Date(date);
-  end.setHours(eh, em, 0, 0);
-  while (cursor < end) {
-    const slotEnd = new Date(cursor.getTime() + durationMin * 60000);
-    if (slotEnd > end) break;
-    slots.push(new Date(cursor));
-    cursor = new Date(cursor.getTime() + 30 * 60000);
+  const y = calendarDate.getFullYear();
+  const mo = calendarDate.getMonth() + 1;
+  const d = calendarDate.getDate();
+
+  const startMs = tzWallToUtc(y, mo, d, sh, sm, hostTz);
+  const endMs = tzWallToUtc(y, mo, d, eh, em, hostTz);
+
+  let cursor = startMs;
+  while (cursor < endMs) {
+    if (cursor + durationMin * 60000 > endMs) break;
+    // Drop slots already in the past — a visitor seeing today's calendar
+    // shouldn't be offered 9am host-time when it's already 11am host-time.
+    if (cursor > Date.now()) slots.push(new Date(cursor));
+    cursor += 30 * 60000;
   }
   return slots;
+}
+
+/**
+ * Friendly TZ label like "Eastern Time" or "Pacific Time" for the banner.
+ * Falls back to the IANA name if the long name isn't available.
+ */
+function friendlyTzLabel(tz) {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      timeZoneName: "long",
+    });
+    const parts = fmt.formatToParts(new Date());
+    return parts.find((p) => p.type === "timeZoneName")?.value || tz;
+  } catch {
+    return tz;
+  }
 }
 
 function renderCalendar() {
@@ -157,18 +234,36 @@ function renderCalendar() {
 function pickDate(date) {
   selectedDate = date;
   const wh = parseWorkHours(config.work_hours_json);
-  const slots = generateSlots(date, config.duration_min, wh);
+  const hostTz = config.host_tz || VISITOR_TZ;
+  const slots = generateSlots(date, config.duration_min, wh, hostTz);
 
   hide($("#step-date"));
   show($("#step-time"));
   $("#selected-date-label").textContent = fmtDate(date);
 
+  // TZ banner — only when visitor and host are in different zones. We hide
+  // the banner entirely in same-tz so it doesn't add noise to the most
+  // common case. Banner explains which times the slots represent.
+  const banner = $("#tz-banner");
+  if (banner) {
+    if (hostTz && hostTz !== VISITOR_TZ) {
+      const hostLabel = friendlyTzLabel(hostTz);
+      const visitorLabel = friendlyTzLabel(VISITOR_TZ);
+      banner.textContent = `Times shown in your timezone (${visitorLabel}). Host's calendar is in ${hostLabel}.`;
+      banner.classList.remove("hidden");
+    } else {
+      banner.classList.add("hidden");
+    }
+  }
+
   const container = $("#time-slots");
-  container.innerHTML = "";
+  container.replaceChildren();
 
   if (slots.length === 0) {
-    container.innerHTML =
-      '<p class="text-muted">No available times for this date.</p>';
+    const p = document.createElement("p");
+    p.className = "text-muted";
+    p.textContent = "No available times for this date.";
+    container.appendChild(p);
     return;
   }
 
