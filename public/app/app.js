@@ -180,6 +180,23 @@ function showError(msg /*, container (kept for backwards-compat) */) {
 // No-op now that errors are non-blocking toasts; kept callable for existing code paths.
 function clearErrors(/* container */) {}
 
+// Clipboard helper shared across tabs (was previously defined inside
+// renderEventTypes, which made it unavailable until that tab rendered once).
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showSuccess("Link copied.");
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    showSuccess("Link copied.");
+  }
+}
+
 function escapeHtml(str) {
   if (str == null) return "";
   return String(str)
@@ -1443,6 +1460,7 @@ function showTab(tab) {
     "sync-flows": "Sync Flows",
     "event-types": "Event Types",
     bookings: "Bookings",
+    polls: "Polls",
     "group-settings": "Group settings",
     "group-schedule": "Schedule",
   };
@@ -1469,6 +1487,7 @@ function showTab(tab) {
   if (tab === "sync-flows") loadSyncFlows();
   if (tab === "event-types") loadEventTypes();
   if (tab === "bookings") loadBookings();
+  if (tab === "polls") loadPolls();
   if (tab === "group-settings") loadGroupSettings();
   if (tab === "group-schedule") loadGroupSchedule();
 }
@@ -2699,24 +2718,6 @@ function renderEventTypes() {
     `;
   }
 
-  // Tiny helper used by the inline copy button — reachable from any tab.
-  if (!window.copyToClipboard) {
-    window.copyToClipboard = async (text) => {
-      try {
-        await navigator.clipboard.writeText(text);
-        showSuccess("Link copied.");
-      } catch {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
-        showSuccess("Link copied.");
-      }
-    };
-  }
-
   const isEditing = editingEventTypeId !== null;
   const editEt = isEditing
     ? eventTypes.find((e) => e.id === editingEventTypeId)
@@ -3245,6 +3246,259 @@ function renderBookings() {
       ${listHtml}
     </div>
   `;
+}
+
+// ─── Polls ───
+//
+// Organizer-side: list of polls owned by the tenant + a create dialog. The
+// create dialog accepts a title, optional description/location, a duration,
+// a require-email toggle, and a list of datetime-local rows for candidate
+// slots. Submitting POSTs to /api/polls; the new poll's share-URL is shown
+// to the organizer to copy and distribute.
+
+let pollsList = [];
+
+async function loadPolls() {
+  const container = $("#polls-content");
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading polls…</div>';
+  try {
+    pollsList = await api("/api/polls");
+    renderPollsList();
+  } catch (err) {
+    if (err.message !== "unauthorized") {
+      container.innerHTML = `<div class="error-banner">Failed to load polls: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function pollPublicUrl(token) {
+  return `${window.location.origin}/poll/${token}`;
+}
+
+function renderPollsList() {
+  const container = $("#polls-content");
+  clearErrors(container);
+
+  let body = "";
+  if (pollsList.length === 0) {
+    body = emptyState({
+      illustrationName: "list",
+      headline: "Run your first meeting poll",
+      subhead:
+        "Propose a few times, share the link, let everyone pick what works. Respondents who sign in see each slot pre-marked free or busy from their own calendar.",
+      ctaLabel: "New poll",
+      ctaOnclick: "openCreatePollDialog()",
+    });
+  } else {
+    body = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Title</th><th>Status</th><th>Slots</th><th>Responses</th><th>Created</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            ${pollsList
+              .map((p) => {
+                const url = pollPublicUrl(p.token);
+                return `
+                <tr data-id="${escapeHtml(p.id)}">
+                  <td>${escapeHtml(p.title)}</td>
+                  <td>${statusBadge(p.status)}</td>
+                  <td>${p.option_count}</td>
+                  <td>${p.response_count}</td>
+                  <td>${formatDate(p.created_at)}</td>
+                  <td class="actions">
+                    <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('${escapeHtml(url)}')" title="Copy share link">Copy link</button>
+                    <a class="btn btn-secondary btn-sm" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open</a>
+                    <button class="icon-btn danger" onclick="deletePoll('${escapeHtml(p.id)}', '${escapeHtml(p.title)}')" title="Delete">${icon("trash", 14)}</button>
+                  </td>
+                </tr>
+              `;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Polls</div>
+        ${pollsList.length > 0 ? '<button class="btn btn-primary btn-sm" onclick="openCreatePollDialog()">New poll</button>' : ""}
+      </div>
+      ${body}
+    </div>
+  `;
+}
+
+async function deletePoll(id, title) {
+  if (!confirm(`Delete poll "${title}"? This is permanent.`)) return;
+  try {
+    await api(`/api/polls/${id}`, { method: "DELETE" });
+    showSuccess("Poll deleted.");
+    await loadPolls();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+// Create-poll modal. Datetime rows let the organizer add as many candidate
+// slots as they want; we ship a sensible default of three blank rows so the
+// UI is usable immediately. The same modal pattern as create-group dialog.
+function openCreatePollDialog() {
+  $(".sidebar")?.classList.remove("open");
+  $(".sidebar-overlay")?.classList.remove("open");
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open";
+  overlay.innerHTML = `
+    <div class="modal-dialog create-poll-dialog">
+      <div class="modal-header">
+        <h3>New poll</h3>
+        <button class="modal-close" type="button" aria-label="Close">×</button>
+      </div>
+      <form id="create-poll-form" class="modal-body">
+        <div class="form-group">
+          <label for="cp-title">Title</label>
+          <input type="text" id="cp-title" placeholder="e.g. Q1 planning sync" required maxlength="120" autofocus>
+        </div>
+        <div class="form-group">
+          <label for="cp-description">Description <span class="optional">(optional)</span></label>
+          <textarea id="cp-description" rows="2" placeholder="What's this meeting for?" maxlength="500"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cp-duration">Duration</label>
+            <select id="cp-duration">
+              <option value="15">15 min</option>
+              <option value="25">25 min</option>
+              <option value="30" selected>30 min</option>
+              <option value="45">45 min</option>
+              <option value="50">50 min</option>
+              <option value="60">1 hour</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cp-location">Location <span class="optional">(optional)</span></label>
+            <input type="text" id="cp-location" placeholder="e.g. Zoom, our office, Meet" maxlength="200">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="toggle-label">
+            <input type="checkbox" id="cp-require-email" checked>
+            <span>Require respondents to provide an email</span>
+          </label>
+          <p class="muted" style="margin-top:4px">Off means anonymous votes are allowed. We can't notify them of the winner.</p>
+        </div>
+        <div class="form-group">
+          <label>Candidate times</label>
+          <div id="cp-options"></div>
+          <button type="button" class="btn btn-secondary btn-sm" id="cp-add-option" style="margin-top:8px">+ Add another time</button>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" id="cp-cancel">Cancel</button>
+        <button class="btn btn-primary" type="submit" form="create-poll-form" id="cp-submit">Create poll</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+
+  const optsEl = overlay.querySelector("#cp-options");
+  // Seed three rows for the default poll shape.
+  for (let i = 0; i < 3; i++) appendOptionRow(optsEl);
+  overlay
+    .querySelector("#cp-add-option")
+    .addEventListener("click", () => appendOptionRow(optsEl));
+
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+    document.removeEventListener("keydown", onKey);
+  };
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  overlay.querySelector("#cp-cancel").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+  document.addEventListener("keydown", onKey);
+
+  overlay
+    .querySelector("#create-poll-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const submitBtn = overlay.querySelector("#cp-submit");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Creating…";
+
+      const title = overlay.querySelector("#cp-title").value.trim();
+      const description = overlay.querySelector("#cp-description").value.trim();
+      const duration_min = Number(overlay.querySelector("#cp-duration").value);
+      const location_text = overlay.querySelector("#cp-location").value.trim();
+      const require_email = overlay.querySelector("#cp-require-email").checked;
+
+      // Pull options. Empty rows are silently dropped — lets the user leave
+      // extra blank rows without forcing them to delete each one.
+      const options = [];
+      for (const input of optsEl.querySelectorAll(
+        "input[type=datetime-local]",
+      )) {
+        const v = input.value;
+        if (!v) continue;
+        const ms = new Date(v).getTime();
+        if (Number.isFinite(ms)) options.push({ start_ms: ms });
+      }
+
+      if (options.length < 2) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Create poll";
+        showError("Pick at least two candidate times.");
+        return;
+      }
+
+      try {
+        const created = await api("/api/polls", {
+          method: "POST",
+          body: JSON.stringify({
+            title,
+            description,
+            duration_min,
+            location_text,
+            require_email,
+            options,
+          }),
+        });
+        close();
+        await loadPolls();
+        const url = pollPublicUrl(created.poll.token);
+        copyToClipboard(url);
+        showSuccess(`Poll created. Share link copied to clipboard.`);
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Create poll";
+        showError(err.message);
+      }
+    });
+}
+
+function appendOptionRow(optsEl) {
+  const row = document.createElement("div");
+  row.className = "poll-option-row";
+  row.style.cssText =
+    "display:flex;gap:8px;margin-bottom:6px;align-items:center";
+  row.innerHTML = `
+    <input type="datetime-local" style="flex:1">
+    <button type="button" class="icon-btn" title="Remove">${icon("trash", 14)}</button>
+  `;
+  row.querySelector("button").addEventListener("click", () => row.remove());
+  optsEl.appendChild(row);
 }
 
 // ─── Auth ───
