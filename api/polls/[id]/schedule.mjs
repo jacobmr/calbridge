@@ -134,10 +134,12 @@ export default async function handler(req, res) {
       );
     }
 
-    // Validate the target calendar belongs to the organizer and can write.
+    // Validate the target calendar belongs to the organizer's tenant and can
+    // write. (calendars are scoped to tenants; user → tenant resolution
+    // happened above.)
     const calRes = await db.execute({
-      sql: "SELECT * FROM calendars WHERE id = ? AND owner_user_id = ? LIMIT 1",
-      args: [calendarId, user.id],
+      sql: "SELECT * FROM calendars WHERE id = ? AND tenant_id = ? LIMIT 1",
+      args: [calendarId, tenant.id],
     });
     const cal = calRes.rows[0];
     if (!cal) {
