@@ -3250,15 +3250,18 @@ function renderBookings() {
 
 // ─── Polls ───
 //
-// Organizer-side: list of polls owned by the tenant + a create dialog. The
-// create dialog accepts a title, optional description/location, a duration,
-// a require-email toggle, and a list of datetime-local rows for candidate
-// slots. Submitting POSTs to /api/polls; the new poll's share-URL is shown
-// to the organizer to copy and distribute.
+// Organizer-side: list of polls owned by the tenant + a create dialog + a
+// per-poll detail view with a tally grid and a "Pick this slot" action that
+// schedules a real calendar event with all responders as attendees.
 
 let pollsList = [];
+let viewingPollId = null;
+let viewingPollDetail = null;
 
 async function loadPolls() {
+  // Reset detail view when re-entering the tab — the user expects the list.
+  viewingPollId = null;
+  viewingPollDetail = null;
   const container = $("#polls-content");
   container.innerHTML =
     '<div class="loading"><div class="spinner"></div>Loading polls…</div>';
@@ -3270,6 +3273,25 @@ async function loadPolls() {
       container.innerHTML = `<div class="error-banner">Failed to load polls: ${escapeHtml(err.message)}</div>`;
     }
   }
+}
+
+async function viewPoll(id) {
+  viewingPollId = id;
+  const container = $("#polls-content");
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading poll…</div>';
+  try {
+    viewingPollDetail = await api(`/api/polls/${id}`);
+    renderPollDetail();
+  } catch (err) {
+    container.innerHTML = `<div class="error-banner">Failed to load poll: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function backToPollsList() {
+  viewingPollId = null;
+  viewingPollDetail = null;
+  renderPollsList();
 }
 
 function pollPublicUrl(token) {
@@ -3303,14 +3325,14 @@ function renderPollsList() {
                 const url = pollPublicUrl(p.token);
                 return `
                 <tr data-id="${escapeHtml(p.id)}">
-                  <td>${escapeHtml(p.title)}</td>
+                  <td><a href="#" onclick="viewPoll('${escapeHtml(p.id)}');return false;">${escapeHtml(p.title)}</a></td>
                   <td>${statusBadge(p.status)}</td>
                   <td>${p.option_count}</td>
                   <td>${p.response_count}</td>
                   <td>${formatDate(p.created_at)}</td>
                   <td class="actions">
+                    <button class="btn btn-secondary btn-sm" onclick="viewPoll('${escapeHtml(p.id)}')" title="View responses">View</button>
                     <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('${escapeHtml(url)}')" title="Copy share link">Copy link</button>
-                    <a class="btn btn-secondary btn-sm" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open</a>
                     <button class="icon-btn danger" onclick="deletePoll('${escapeHtml(p.id)}', '${escapeHtml(p.title)}')" title="Delete">${icon("trash", 14)}</button>
                   </td>
                 </tr>
@@ -3499,6 +3521,213 @@ function appendOptionRow(optsEl) {
   `;
   row.querySelector("button").addEventListener("click", () => row.remove());
   optsEl.appendChild(row);
+}
+
+// Detail view: tally grid (rows = respondents, columns = options) + a
+// "Pick this slot" button per option that opens the schedule dialog.
+function renderPollDetail() {
+  const container = $("#polls-content");
+  if (!viewingPollDetail) {
+    container.innerHTML =
+      '<div class="loading"><div class="spinner"></div>Loading poll…</div>';
+    return;
+  }
+  const { poll, options, responses } = viewingPollDetail;
+  const url = pollPublicUrl(poll.token);
+  const isOpen = poll.status === "open" || poll.status === "closed";
+
+  // Header bar
+  const headerActions = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('${escapeHtml(url)}')">Copy share link</button>
+      <a class="btn btn-secondary btn-sm" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open public page</a>
+      ${
+        poll.status === "open"
+          ? `<button class="btn btn-secondary btn-sm" onclick="closePoll('${escapeHtml(poll.id)}')">Close voting</button>`
+          : ""
+      }
+      <button class="icon-btn danger" onclick="deletePoll('${escapeHtml(poll.id)}','${escapeHtml(poll.title)}')" title="Delete">${icon("trash", 14)}</button>
+    </div>
+  `;
+
+  // Tally grid: header row of options with vote counts and "Pick" buttons
+  // when the poll is still pickable; body rows of respondents marking their
+  // ✓ / ✗ on each option.
+  let tally = "";
+  if (options.length === 0) {
+    tally = `<p class="muted">This poll has no options.</p>`;
+  } else if (responses.length === 0) {
+    tally = `<p class="muted">No responses yet. Share the link and check back.</p>`;
+  } else {
+    const optHeader = options
+      .map((o) => {
+        const isWinner = poll.selected_option_id === o.id;
+        const pickBtn = isOpen
+          ? `<button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="openScheduleDialog('${escapeHtml(poll.id)}','${escapeHtml(o.id)}')">Pick this slot</button>`
+          : isWinner
+            ? `<div style="margin-top:6px"><span class="scheduled-pill">Scheduled</span></div>`
+            : "";
+        return `
+        <th style="white-space:nowrap${isWinner ? ";background:rgba(56,161,105,0.06)" : ""}">
+          <div>${escapeHtml(formatDate(o.start_ms))}</div>
+          <div class="muted" style="font-size:0.8rem">${o.votes} of ${responses.length} say yes</div>
+          ${pickBtn}
+        </th>
+      `;
+      })
+      .join("");
+    const rows = responses
+      .map((r) => {
+        const who = escapeHtml(r.name || r.email || "Anonymous");
+        const cells = options
+          .map((o) => {
+            const picked = r.picked_option_ids.includes(o.id);
+            return `<td style="text-align:center;font-size:1.1rem">${picked ? "✓" : "—"}</td>`;
+          })
+          .join("");
+        return `<tr><td>${who}${r.comment ? `<div class="muted" style="font-size:0.8rem">${escapeHtml(r.comment)}</div>` : ""}</td>${cells}</tr>`;
+      })
+      .join("");
+
+    tally = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Respondent</th>${optHeader}</tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <button class="btn btn-secondary btn-sm" onclick="backToPollsList()" style="margin-right:8px">← Back</button>
+        <div class="card-title" style="flex:1">${escapeHtml(poll.title)}</div>
+        ${headerActions}
+      </div>
+      <p class="muted" style="margin-bottom:8px">
+        ${statusBadge(poll.status)}
+        · ${poll.duration_min} min
+        ${poll.location_text ? `· ${escapeHtml(poll.location_text)}` : ""}
+      </p>
+      ${poll.description ? `<p style="margin-bottom:16px">${escapeHtml(poll.description)}</p>` : ""}
+      ${tally}
+    </div>
+  `;
+}
+
+async function closePoll(id) {
+  if (
+    !confirm(
+      "Close voting on this poll? Respondents won't be able to submit new answers.",
+    )
+  ) {
+    return;
+  }
+  try {
+    viewingPollDetail = await api(`/api/polls/${id}/close`, { method: "POST" });
+    showSuccess("Poll closed.");
+    renderPollDetail();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+// Pick-this-slot dialog. Asks which writable calendar to schedule on,
+// confirms the responder count, and POSTs to /schedule.
+async function openScheduleDialog(pollId, optionId) {
+  // Need writable calendars. Cached calendars list is loaded by the
+  // Calendars tab — we may not have it here, so fetch fresh.
+  let cals;
+  try {
+    cals = await api("/api/calendars");
+  } catch (err) {
+    showError(`Couldn't load calendars: ${err.message}`);
+    return;
+  }
+  const writable = (cals || []).filter(
+    (c) => c.provider !== "ics" && c.enabled,
+  );
+  if (writable.length === 0) {
+    showError("Connect a writable Google or Outlook calendar first.");
+    return;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open";
+  overlay.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Schedule this slot</h3>
+        <button class="modal-close" type="button" aria-label="Close">×</button>
+      </div>
+      <form id="sch-form" class="modal-body">
+        <p style="margin-bottom:12px">We'll create the event on the calendar you pick, with every responder added as an attendee. Anyone who provided an email will get a calendar invite.</p>
+        <div class="form-group">
+          <label for="sch-cal">Add the event to</label>
+          <select id="sch-cal" required>
+            ${writable
+              .map(
+                (c) =>
+                  `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label || c.provider_calendar_id)} · ${escapeHtml(c.provider)}</option>`,
+              )
+              .join("")}
+          </select>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" id="sch-cancel">Cancel</button>
+        <button class="btn btn-primary" type="submit" form="sch-form" id="sch-submit">Schedule it</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+    document.removeEventListener("keydown", onKey);
+  };
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  overlay.querySelector("#sch-cancel").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+  document.addEventListener("keydown", onKey);
+
+  overlay.querySelector("#sch-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const submitBtn = overlay.querySelector("#sch-submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Scheduling…";
+    const calendar_id = overlay.querySelector("#sch-cal").value;
+    try {
+      const result = await api(`/api/polls/${pollId}/schedule`, {
+        method: "POST",
+        body: JSON.stringify({ option_id: optionId, calendar_id }),
+      });
+      close();
+      const note =
+        result.recipients > 0
+          ? ` · ${result.emails_sent} email${result.emails_sent === 1 ? "" : "s"} sent`
+          : "";
+      showSuccess(`Scheduled.${note}`);
+      // Refresh the detail view so the option highlights as the winner.
+      viewingPollDetail = await api(`/api/polls/${pollId}`);
+      renderPollDetail();
+    } catch (err) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Schedule it";
+      showError(err.message);
+    }
+  });
 }
 
 // ─── Auth ───
