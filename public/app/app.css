@@ -21,6 +21,15 @@
   box-sizing: border-box;
 }
 
+/* The HTML hidden attribute is supposed to act like display:none, but any
+   later rule with an explicit display value will override it. We rely on
+   `el.hidden = true` for menu/dropdown toggling in several places, so make
+   the attribute authoritative globally. !important is the recommended
+   guard for exactly this pattern. */
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -309,11 +318,11 @@ body {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 8px 14px;
+  padding: 10px 14px;
   margin-top: 4px;
   background: none;
   border: none;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--bridge-blue);
   cursor: pointer;

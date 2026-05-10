@@ -77,7 +77,15 @@ export default async function handler(req, res) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", scopes.join(" "));
   authUrl.searchParams.set("state", state);
-  authUrl.searchParams.set("prompt", "consent");
+  // Microsoft re-prompts whenever requested scopes change — for steady
+  // re-login with the same scope list, no prompt parameter is needed
+  // and the consent screen is skipped silently. We only force it when
+  // the caller explicitly asks (e.g. recovery from a missing refresh
+  // token via ?force_consent=1). offline_access is in the scope list
+  // above, so refresh tokens are issued on the first grant.
+  if (url.searchParams.get("force_consent") === "1") {
+    authUrl.searchParams.set("prompt", "consent");
+  }
 
   res.statusCode = 302;
   res.setHeader("location", authUrl.toString());

@@ -77,7 +77,16 @@ export default async function handler(req, res) {
   authUrl.searchParams.set("scope", scopes.join(" "));
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("access_type", "offline");
-  authUrl.searchParams.set("prompt", "consent");
+  // Tells Google to apply previously-granted scopes silently rather
+  // than re-prompt — pairs with omitting prompt=consent below.
+  authUrl.searchParams.set("include_granted_scopes", "true");
+  // Only force the consent screen when we explicitly need a fresh
+  // refresh_token (e.g. token refresh failed and we re-routed the user
+  // through OAuth with ?force_consent=1). Without this, returning
+  // users authorize silently — the standard pattern for OAuth re-login.
+  if (url.searchParams.get("force_consent") === "1") {
+    authUrl.searchParams.set("prompt", "consent");
+  }
 
   res.statusCode = 302;
   res.setHeader("location", authUrl.toString());

@@ -352,6 +352,12 @@ function selectGroup(groupId, tab) {
 // mobile Safari and confusing ("Cancel = Team" surprised people who hit
 // Cancel meaning "abort").
 function openCreateGroupDialog() {
+  // On mobile the create button lives inside the slid-out sidebar — leaving
+  // the sidebar open behind the modal looks like two stacked panels. Close
+  // it so the modal stands alone.
+  $(".sidebar")?.classList.remove("open");
+  $(".sidebar-overlay")?.classList.remove("open");
+
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay open";
   overlay.innerHTML = `
@@ -1079,11 +1085,11 @@ function renderGroupSchedule() {
     ? buckets.map(renderDayBucket).join("")
     : `
       <div class="card empty-hero">
-        <h2>No events to show</h2>
-        <p>Either nobody has shared a calendar yet, or there's nothing scheduled in the next two weeks. ${
+        <h2>Nothing on the calendar</h2>
+        <p>Nobody's shared an event in the next two weeks. ${
           detail.my_role === "owner" || detail.my_role === "admin"
-            ? '<a href="#" onclick="showTab(\'group-settings\');return false;">Configure sharing</a> to start.'
-            : ""
+            ? 'Need to <a href="#" onclick="showTab(\'group-settings\');return false;">change sharing settings</a>?'
+            : "Check back later."
         }</p>
       </div>
     `;
@@ -1430,7 +1436,7 @@ function showTab(tab) {
 
   // Update page title. Group-scoped tabs prefix with the group name so the
   // top bar always tells you where you are — useful on mobile where the
-  // sidebar is hidden, and after switching groups via the dropdown.
+  // sidebar is hidden, and when the user has multiple groups in the sidebar.
   const titles = {
     overview: "Dashboard",
     calendars: "Calendars",
@@ -3201,9 +3207,8 @@ function renderBookings() {
   if (bookings.length === 0) {
     listHtml = emptyState({
       illustrationName: "book",
-      headline: "Bookings will land here",
-      subhead:
-        "When someone schedules through one of your event types, you'll see them in this list.",
+      headline: "Bookings show up here",
+      subhead: "Share one of your event types and watch this fill up.",
     });
   } else {
     listHtml = `
