@@ -196,18 +196,37 @@ for…" cautionary phrasing on the consent screen.
 
 ---
 
-## What we deliberately don't request (yet)
-
-### Contacts scopes
+## Contacts scopes — declared in console, code activation imminent
 
 - Google: `https://www.googleapis.com/auth/contacts.readonly`
 - Microsoft: `Contacts.Read`
 
-The internal contacts model (passive collection from MiCal-internal
-invites/polls) covers ~80% of the value without ever asking for these.
-We'd add them later only as an opt-in "import from Google Contacts"
-convenience — and at that point we'd need to extend the consent
-screen and probably re-verify on the Google side.
+These are **declared in both consoles** so they're already approved by
+the time the autocomplete feature lands, but **not yet requested by
+the runtime code**. Declaring ahead is fine here because (a) we know
+we're shipping the feature in days, not weeks, and (b) the console
+list is supposed to mirror what the runtime requests — by the time any
+verification reviewer looks at the declared set, the code will match.
+
+When the autocomplete feature lands, add both scopes to the runtime
+arrays in `api/oauth/{google,microsoft}/init.mjs`. Existing users will
+silently get the new scope added to their grant (Google) or re-consent
+once on their next sign-in (Microsoft) thanks to
+`include_granted_scopes=true` and the `offline_access` scope we
+already request.
+
+Google data-handling justification used when declaring:
+
+> MiCal uses contacts to auto-suggest email addresses when the user
+> is sending invitations — for meeting polls, family/team group
+> invites, and booking-page recipients. Contacts are read into the
+> user's MiCal session for autocomplete only; they are not stored on
+> MiCal servers beyond an in-memory cache, never shared with third
+> parties, and never used to train models.
+
+If our actual implementation ends up caching contacts in the DB for
+performance, this wording needs to be revised before verification —
+mismatched wording is one of the more common verification rejections.
 
 ### Calendar (full) scope
 
