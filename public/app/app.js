@@ -236,29 +236,20 @@ function showTab(tab) {
   if (tab === "bookings") loadBookings();
 }
 
-// ─── Overview ───
+// ─── Overview / Command Center ───
 async function loadOverview() {
   const container = $("#overview-content");
   container.innerHTML =
     '<div class="loading"><div class="spinner"></div>Loading…</div>';
 
   try {
-    const [me, cals, flows, types, bks] = await Promise.all([
+    const [me, overview] = await Promise.all([
       api("/api/auth/me"),
-      api("/api/calendars"),
-      api("/api/sync-flows"),
-      api("/api/event-types"),
-      api("/api/bookings"),
+      api("/api/overview"),
     ]);
-
     currentUser = me;
-    calendars = cals || [];
-    syncFlows = flows || [];
-    eventTypes = types || [];
-    bookings = bks || [];
-
     renderUserInfo();
-    renderOverview();
+    renderOverview(overview);
   } catch (err) {
     if (err.message !== "unauthorized") {
       container.innerHTML = `<div class="error-banner">Failed to load: ${escapeHtml(err.message)}</div>`;
@@ -276,51 +267,214 @@ function renderUserInfo() {
   $("#user-avatar").textContent = getInitials(name, email);
 }
 
-function renderOverview() {
+// Format ms-since-epoch as a relative phrase ("2 min ago", "3 hr ago", "May 4")
+function relTime(ms) {
+  if (ms == null) return "";
+  const diff = Date.now() - Number(ms);
+  if (diff < 60_000) return "just now";
+  if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)} min ago`;
+  if (diff < 24 * 60 * 60_000)
+    return `${Math.floor(diff / (60 * 60_000))} hr ago`;
+  if (diff < 7 * 24 * 60 * 60_000)
+    return `${Math.floor(diff / (24 * 60 * 60_000))} d ago`;
+  return new Date(Number(ms)).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+// Build a single status card. `count` is required; `health` is one of
+// "healthy" | "stale" | "warning" | "error" | "neverRun" | null.
+function statusCard({ label, count, health, hint, onClick }) {
+  let pill = "";
+  if (health === "healthy")
+    pill = `<span class="health-pill health-healthy">${icon("check", 12)} Healthy</span>`;
+  else if (health === "stale")
+    pill = `<span class="health-pill health-stale">Stale</span>`;
+  else if (health === "warning")
+    pill = `<span class="health-pill health-warning">Needs attention</span>`;
+  else if (health === "error")
+    pill = `<span class="health-pill health-error">Error</span>`;
+  else if (health === "neverRun")
+    pill = `<span class="health-pill health-muted">Never run</span>`;
+  else if (hint)
+    pill = `<span class="health-pill health-muted">${escapeHtml(hint)}</span>`;
+  else pill = `<span class="health-pill health-muted">—</span>`;
+
+  const onClickAttr = onClick ? `onclick="${onClick}"` : "";
+  const cls = onClick ? "stat-card clickable" : "stat-card";
+  return `
+    <div class="${cls}" ${onClickAttr}>
+      <div class="stat-label">${escapeHtml(label)}</div>
+      <div class="stat-value">${Number(count) || 0}</div>
+      <div class="stat-pill-row">${pill}</div>
+    </div>
+  `;
+}
+
+// Pick the dominant health bucket for the Sync Flows card from a syncHealth
+// breakdown. Order matters: error > warning > neverRun > stale > healthy.
+function dominantSyncHealth(h) {
+  if (!h) return null;
+  if (h.error > 0) return "error";
+  if (h.warning > 0) return "warning";
+  if (h.healthy > 0) return "healthy";
+  if (h.stale > 0) return "stale";
+  if (h.neverRun > 0) return "neverRun";
+  return null;
+}
+
+function renderActivityItem(item) {
+  if (item.kind === "sync_run") {
+    const totals = item.totals || {};
+    const dot = item.ok ? "activity-ok" : "activity-err";
+    const label = `${item.source || "?"} → ${item.target || "?"}`;
+    const detail = item.ok
+      ? `${totals.created || 0} created · ${totals.skipped || 0} skipped`
+      : `failed (${totals.errors || "?"} errors)`;
+    return `
+      <li class="activity-item">
+        <span class="activity-dot ${dot}"></span>
+        <span class="activity-when">${escapeHtml(relTime(item.at))}</span>
+        <span class="activity-text"><strong>Sync</strong> ${escapeHtml(label)} · ${escapeHtml(detail)}</span>
+      </li>
+    `;
+  }
+  if (item.kind === "booking") {
+    const subj = item.subject || item.eventTypeName || "Booking";
+    return `
+      <li class="activity-item">
+        <span class="activity-dot activity-info"></span>
+        <span class="activity-when">${escapeHtml(relTime(item.at))}</span>
+        <span class="activity-text"><strong>New booking</strong> · ${escapeHtml(subj)}</span>
+      </li>
+    `;
+  }
+  return "";
+}
+
+function renderOverview(data) {
   const container = $("#overview-content");
-  const name =
-    currentUser?.display_name || currentUser?.email?.split("@")[0] || "there";
-  const tenantSlug = currentUser?.tenant_slug
-    ? `Tenant: <strong>${escapeHtml(currentUser.tenant_slug)}</strong>`
-    : "";
+  const c = data?.counts || {};
+  const sh = data?.syncHealth || {};
+  const recent = data?.recentActivity || [];
+  const attention = data?.needsAttention || [];
+
+  const calendarsHint = c.calendars === 0 ? "Add one to start" : null;
+  const eventTypesHint = c.eventTypes === 0 ? "Optional" : null;
+  const bookingsHint = c.bookingsNew > 0 ? `${c.bookingsNew} new` : null;
+
+  // First-run empty state: zero calendars → big single CTA, hide the rest.
+  if (c.calendars === 0) {
+    container.innerHTML = `
+      <div class="card empty-hero">
+        <div class="empty-state-icon">${icon("calendar", 48)}</div>
+        <h2>Connect your first calendar</h2>
+        <p>MiCal needs at least one calendar before it can sync anything. Pick a provider to get started.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/api/oauth/google/init">Connect Google</a>
+          <a class="btn btn-secondary" href="/api/oauth/microsoft/init">Connect Outlook</a>
+          <button class="btn btn-secondary" onclick="showTab('calendars')">Or add an ICS feed</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const statusCards = [
+    statusCard({
+      label: "Calendars",
+      count: c.calendars,
+      health: c.calendars > 0 ? "healthy" : null,
+      hint: calendarsHint,
+      onClick: "showTab('calendars')",
+    }),
+    statusCard({
+      label: "Sync Flows",
+      count: c.syncFlows,
+      health: c.syncFlows > 0 ? dominantSyncHealth(sh) : null,
+      onClick: "showTab('sync-flows')",
+    }),
+    statusCard({
+      label: "Event Types",
+      count: c.eventTypes,
+      health: null,
+      hint: eventTypesHint,
+      onClick: "showTab('event-types')",
+    }),
+    statusCard({
+      label: "Bookings",
+      count: c.bookings,
+      health: null,
+      hint: bookingsHint,
+      onClick: "showTab('bookings')",
+    }),
+  ].join("");
+
+  // "Needs attention" is hidden when empty — never a section just to say "all good"
+  let attentionHtml = "";
+  if (attention.length > 0) {
+    attentionHtml = `
+      <div class="card attention-card">
+        <div class="card-header"><div class="card-title">Needs attention</div></div>
+        <ul class="attention-list">
+          ${attention
+            .map((a) => {
+              const ago = a.lastRunAt ? `${relTime(a.lastRunAt)}` : "never run";
+              const sev = a.severity === "error" ? "error" : "warning";
+              return `
+                <li class="attention-item severity-${sev}" onclick="showTab('sync-flows')">
+                  <span class="attention-icon">${icon(a.severity === "error" ? "trash" : "sync", 16)}</span>
+                  <span class="attention-text">
+                    <strong>${escapeHtml(a.source || "?")} → ${escapeHtml(a.target || "?")}</strong>
+                    <span class="attention-detail">${a.severity === "error" ? "Last run failed" : "No recent runs"} · ${escapeHtml(ago)}</span>
+                  </span>
+                </li>
+              `;
+            })
+            .join("")}
+        </ul>
+      </div>
+    `;
+  }
+
+  let activityHtml = "";
+  if (recent.length > 0) {
+    activityHtml = `
+      <div class="card">
+        <div class="card-header"><div class="card-title">Recent activity</div></div>
+        <ul class="activity-list">
+          ${recent.map(renderActivityItem).join("")}
+        </ul>
+      </div>
+    `;
+  }
+
+  // Quick actions: only show what's relevant given current state
+  const quickActions = [];
+  if (c.syncFlows === 0)
+    quickActions.push(
+      `<button class="btn btn-primary" onclick="showTab('sync-flows')">Create your first sync flow</button>`,
+    );
+  else
+    quickActions.push(
+      `<button class="btn btn-secondary" onclick="showTab('sync-flows')">Create sync flow</button>`,
+    );
+  quickActions.push(
+    `<button class="btn btn-secondary" onclick="showTab('calendars')">Add calendar</button>`,
+  );
+  if (c.calendars > 0)
+    quickActions.push(
+      `<button class="btn btn-secondary" onclick="showTab('event-types')">${c.eventTypes === 0 ? "Set up booking page" : "New event type"}</button>`,
+    );
 
   container.innerHTML = `
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-value">${calendars.length}</div>
-        <div class="stat-label">Connected Calendars</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${syncFlows.length}</div>
-        <div class="stat-label">Sync Flows</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${eventTypes.length}</div>
-        <div class="stat-label">Event Types</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${bookings.length}</div>
-        <div class="stat-label">Bookings</div>
-      </div>
-    </div>
-
+    <div class="stats-grid">${statusCards}</div>
+    ${attentionHtml}
+    ${activityHtml}
     <div class="card">
-      <div class="card-header">
-        <div class="card-title">Welcome back, ${escapeHtml(name)}!</div>
-      </div>
-      <p style="color:var(--stone)">This is your MiCal dashboard. Use the sidebar to manage calendars, sync flows, event types, and bookings.</p>
-      ${tenantSlug ? `<p style="margin-top:8px;color:var(--stone);font-size:0.9rem">${tenantSlug}</p>` : ""}
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Quick Actions</div>
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="showTab('calendars')">Add Calendar</button>
-        <button class="btn btn-secondary" onclick="showTab('sync-flows')">Create Sync Flow</button>
-        <button class="btn btn-secondary" onclick="showTab('event-types')">New Event Type</button>
-      </div>
+      <div class="card-header"><div class="card-title">Quick actions</div></div>
+      <div class="quick-actions">${quickActions.join("")}</div>
     </div>
   `;
 }
