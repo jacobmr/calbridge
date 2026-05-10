@@ -147,6 +147,63 @@ Verification is a real cost, but it's required before we can scale
 past the early-adopter phase. Worth doing once we're confident in
 product-market fit.
 
+### Scope classifications and what each demands
+
+Google sorts scopes into tiers, and each tier has a different
+verification ceremony:
+
+| Tier | What we use here | What verification requires |
+|---|---|---|
+| Basic (`openid`, `email`, `profile`) | Identity scopes | Nothing |
+| Sensitive (`contacts.readonly`) | The contacts scope we're adding for autocomplete | Domain verification + privacy policy + an unlisted YouTube demo |
+| Restricted (`calendar.readonly`, `calendar.events`) | Our two calendar scopes | All of the above + a CASA Tier 2 security assessment ($500-$1500, external vendor) |
+
+In practice as of this writing, Google was only asking for the
+YouTube demo when contacts was added — the calendar scopes weren't
+gating verification. So the video scope is **the contacts feature
+only**, not a full app demo.
+
+### Verification YouTube demo (contacts) — shot list
+
+Goal: prove that `contacts.readonly` does what the data-handling
+justification said. ~90 seconds. Use a clean demo Google account with
+sanitized contacts and events — reviewers see whatever's on screen.
+
+**Recording order matters**: build the contacts autocomplete feature
+in code first, ship to prod, then record on prod. Don't film a
+pre-feature mockup — that's a verification-rejection trigger.
+
+| Time  | What's on screen | Narration |
+|---|---|---|
+| 0:00  | Browser at mical.net, signed-in dashboard, URL bar visible | "MiCal is a calendar coordination tool at mical.net. From here, users send meeting polls and event-type invitations." |
+| 0:10  | Click "New poll" → create-poll modal opens; scroll to "Send invitations to" field | "When sending invitations, the user types email addresses one at a time." |
+| 0:25  | Focus the field, type two letters (e.g. "ja") | "We use `contacts.readonly` to suggest matching contacts from the user's Google address book…" |
+| 0:35  | Suggestion dropdown appears with 2-3 contacts whose names start with "ja" | "…showing matching names and email addresses inline." |
+| 0:45  | Click one to add as a recipient chip | "User picks one to add to the invitation list." |
+| 0:55  | Show the same autocomplete on a group-invite or event-type form | "The same autocomplete is used everywhere the user is sending email — group invitations, booking-page guests, and so on." |
+| 1:10  | Optional final shot — privacy policy line about contacts handling | "Contacts are read into the user's session for autocomplete only — not stored on MiCal servers, not shared with third parties, not used to train models." |
+
+Rejection-avoiding details:
+- **1080p+.** Lower will get rejected for "can't read text."
+- **Slow, deliberate.** Don't fast-forward — reviewers want to see
+  the actual interaction.
+- **Sign in with the same Google account that owns the OAuth client.**
+  Side effect: no unverified-app warning shows, which is fine.
+- **No background music, no fancy editing.** Production value is not
+  what's being graded.
+- **Upload as Unlisted** (not Private — Private requires YouTube
+  auth, which the reviewer doesn't have).
+- **Match wording.** Whatever you said in the data-handling
+  justification needs to be borne out in the video. If the
+  justification said "in-memory cache" but the video shows persisted
+  contacts in a Contacts page, that's the kind of mismatch that
+  trips rejections.
+
+If Google ever asks for a video for the calendar scopes too (they
+might, especially if usage patterns change), the structure is the
+same: open with branding + privacy/ToS, show OAuth flow, demonstrate
+each scope's usage in turn.
+
 ---
 
 ## Microsoft / Azure AD setup
