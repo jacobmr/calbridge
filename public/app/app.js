@@ -3427,7 +3427,7 @@ function openCreatePollDialog() {
         <div class="form-group">
           <label>Candidate times <span id="cp-selected-count" class="muted">(0 picked)</span></label>
           <p class="muted" style="font-size:0.85rem;margin:0 0 8px">
-            Click times that work. Slots already busy on your calendar are crossed out.
+            Click any times that work. Slots already booked on your calendar aren't shown.
           </p>
           <div id="cp-slot-grid">
             <div class="loading"><div class="spinner"></div>Loading your calendar…</div>
@@ -3605,21 +3605,19 @@ function renderSlotGrid(overlay) {
     while (cursor + stepMs <= dayEnd.getTime()) {
       const slotStart = cursor;
       const slotEnd = cursor + stepMs;
-      // Drop slots already in the past — even on today's row.
-      if (slotStart > Date.now()) {
+      // Drop slots in the past, and drop slots that already conflict with
+      // something on the organizer's calendar — they can't usefully offer
+      // those times anyway, so don't render visual noise.
+      if (slotStart > Date.now() && !isBusyAt(slotStart, slotEnd)) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "poll-pick-slot";
-        const busy = isBusyAt(slotStart, slotEnd);
-        if (busy) btn.classList.add("is-busy");
         if (pickerState.selected.has(slotStart)) btn.classList.add("is-picked");
         btn.dataset.startMs = String(slotStart);
         btn.textContent = new Date(slotStart).toLocaleTimeString("en-US", {
           hour: "numeric",
           minute: "2-digit",
         });
-        if (busy)
-          btn.title = "Conflicts with an existing event on your calendar";
         btn.addEventListener("click", () => {
           if (pickerState.selected.has(slotStart)) {
             pickerState.selected.delete(slotStart);

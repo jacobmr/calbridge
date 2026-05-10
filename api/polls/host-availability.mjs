@@ -132,17 +132,16 @@ export default async function handler(req, res) {
     for (const events of eventLists) {
       for (const e of events) {
         if (e.transparency === "transparent") continue;
-        const eStart = e.start?.dateTime
-          ? Date.parse(e.start.dateTime)
-          : e.start?.date
-            ? Date.parse(`${e.start.date}T00:00:00Z`)
-            : null;
-        const eEnd = e.end?.dateTime
-          ? Date.parse(e.end.dateTime)
-          : e.end?.date
-            ? Date.parse(`${e.end.date}T00:00:00Z`)
-            : null;
-        if (eStart == null || eEnd == null) continue;
+        // Skip all-day events. They almost never represent "you can't take a
+        // meeting at 2pm" — they're birthdays, holidays, OOO markers — and
+        // most providers default them to opaque so leaving them in turns
+        // every working hour of those days into a conflict. If a user has
+        // a true all-day commitment they should be the one to opt in.
+        // Detected by start.date (vs start.dateTime).
+        if (!e.start?.dateTime) continue;
+        const eStart = Date.parse(e.start.dateTime);
+        const eEnd = e.end?.dateTime ? Date.parse(e.end.dateTime) : null;
+        if (!Number.isFinite(eStart) || !Number.isFinite(eEnd)) continue;
         // Trim to the requested window — both for clarity and so the client
         // doesn't have to guard against intervals that extend past the grid.
         const s = Math.max(eStart, startMs);
