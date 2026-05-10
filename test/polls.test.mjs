@@ -75,9 +75,8 @@ test("polls: organizer creates, votes upsert by email, schedule emits emails", a
   const { getDb } = await import("../db/client.mjs");
   const db = getDb();
 
-  const { createSession, buildCookieValue } = await import(
-    "../lib/session.mjs"
-  );
+  const { createSession, buildCookieValue } =
+    await import("../lib/session.mjs");
 
   // Seed: organizer Alice with a tenant, plus a Google calendar she can
   // schedule on. Bob is a separate user (will sign in to vote).
@@ -288,23 +287,22 @@ test("polls: organizer creates, votes upsert by email, schedule emits emails", a
   void scheduleHandler;
 });
 
-// Schema-level guarantees that the require_email + tenant scoping pieces
-// work the way we believe they do.
-test("polls: require_email rejects anonymous votes when set", async () => {
+// v1.1: fully anonymous votes (no session, no email) are always rejected;
+// require_email is locked on regardless of what the create request supplied.
+test("polls v1.1: votes without identifier are rejected; invite_emails persisted", async () => {
   const { migrate } = await import("../db/migrate.mjs");
   await migrate({ verbose: false });
 
   const { getDb } = await import("../db/client.mjs");
   const db = getDb();
-  const { createSession, buildCookieValue } = await import(
-    "../lib/session.mjs"
-  );
+  const { createSession, buildCookieValue } =
+    await import("../lib/session.mjs");
 
   const userId = randomUUID();
   const tenantId = randomUUID();
   await db.execute({
-    sql: "INSERT INTO users (id, email, created_at) VALUES (?, ?, ?)",
-    args: [userId, "host@example.com", Date.now()],
+    sql: "INSERT INTO users (id, email, display_name, created_at) VALUES (?, ?, ?, ?)",
+    args: [userId, "host@example.com", "Host", Date.now()],
   });
   await db.execute({
     sql: "INSERT INTO tenants (id, slug, name, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -316,14 +314,24 @@ test("polls: require_email rejects anonymous votes when set", async () => {
   const publicHandler = (await import("../api/polls/public.mjs")).default;
 
   const inAnHour = Date.now() + 60 * 60 * 1000;
+  // Even though the request asks for require_email=false, the server
+  // ignores that — anonymous voting was retired in v1.1. Also pass an
+  // invite_emails list with duplicates + a malformed entry to exercise
+  // the dedupe + filter logic.
   const created = await invoke(pollsHandler, {
     method: "POST",
     url: "/api/polls",
     cookie,
     body: {
-      title: "Casual hang",
+      title: "Sync",
       duration_min: 30,
-      require_email: false, // anonymous votes allowed
+      require_email: false,
+      invite_emails: [
+        "ALICE@example.com",
+        "alice@example.com",
+        "bob@example.com",
+        "not-an-email",
+      ],
       options: [
         { start_ms: inAnHour },
         { start_ms: inAnHour + 24 * 60 * 60 * 1000 },
@@ -331,14 +339,47 @@ test("polls: require_email rejects anonymous votes when set", async () => {
     },
   });
   assert.equal(created.status, 201);
+  assert.equal(
+    created.body.poll.require_email,
+    true,
+    "server forces require_email=true",
+  );
+  assert.equal(
+    created.body.invites_total,
+    2,
+    "alice + bob, deduped + malformed dropped",
+  );
+  // Persisted rows match.
+  const inv = await db.execute({
+    sql: "SELECT email FROM poll_invites WHERE poll_id = ? ORDER BY email",
+    args: [created.body.poll.id],
+  });
+  assert.deepEqual(
+    inv.rows.map((r) => r.email),
+    ["alice@example.com", "bob@example.com"],
+  );
+
   const token = created.body.poll.token;
   const optId = created.body.options[0].id;
 
-  // No email, no session — accepted because require_email=false.
+  // No email, no session — rejected.
   const anon = await invoke(publicHandler, {
     method: "POST",
     url: "/api/polls/public",
-    body: { token, name: "Anonymous", picked_option_ids: [optId] },
+    body: { token, name: "Nameless", picked_option_ids: [optId] },
   });
-  assert.equal(anon.status, 200);
+  assert.equal(anon.status, 400);
+
+  // With email — accepted.
+  const withEmail = await invoke(publicHandler, {
+    method: "POST",
+    url: "/api/polls/public",
+    body: {
+      token,
+      name: "Eve",
+      email: "eve@example.com",
+      picked_option_ids: [optId],
+    },
+  });
+  assert.equal(withEmail.status, 200);
 });

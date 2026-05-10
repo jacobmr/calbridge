@@ -6,7 +6,7 @@ node_modules/
 .DS_Store
 .calbridge.db
 .calbridge.db-*
-.test-calbridge.db
-.test-calbridge.db-*
+.test-*.db
+.test-*.db-*
 .vercel
 .env*.local

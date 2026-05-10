@@ -1722,6 +1722,85 @@ textarea {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
 }
 
+/* Poll create slot picker — one row per day, day header on the left and
+   inline time-slot chips on the right. Slots that conflict with the
+   organizer's calendar are visually crossed out but still clickable
+   (the picker only suggests; the organizer can override). */
+#cp-slot-grid {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.slot-row {
+  display: flex;
+  gap: 12px;
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  align-items: flex-start;
+}
+
+.slot-row:last-child {
+  border-bottom: none;
+}
+
+.slot-row-header {
+  flex: 0 0 100px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--charcoal);
+  padding-top: 4px;
+}
+
+.slot-row-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.poll-pick-slot {
+  background: var(--white);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--charcoal);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.poll-pick-slot:hover {
+  border-color: var(--flow-teal);
+}
+
+.poll-pick-slot.is-picked {
+  background: var(--flow-teal);
+  border-color: var(--teal-dark);
+  color: var(--white);
+  font-weight: 600;
+}
+
+.poll-pick-slot.is-busy {
+  text-decoration: line-through;
+  color: var(--stone);
+  background: var(--cloud);
+}
+
+.poll-pick-slot.is-busy.is-picked {
+  /* Even if the organizer overrides a busy slot, keep the strikethrough
+     visible so they remember it conflicts with their existing calendar. */
+  text-decoration: line-through;
+  color: var(--white);
+  background: var(--flow-teal);
+}
+
 /* Type picker (Create Group, future tile-style choices) */
 .type-picker {
   display: grid;

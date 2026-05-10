@@ -198,14 +198,16 @@ async function postPublicVote(req, res) {
     );
   }
 
-  // require_email gates anonymous votes when the organizer wants to be able
-  // to notify respondents of the winner.
+  // Every vote must be tied to either a session (signed-in user) or an
+  // email — fully anonymous votes were retired in v1.1. Without an
+  // identifier we have no way to notify the responder of the winner and
+  // no way to deduplicate repeated votes.
   const session = await loadSession(req);
   const userId = session?.userId || null;
-  if (Number(poll.require_email) === 1 && !email && !userId) {
+  if (!email && !userId) {
     return sendError(
       res,
-      Object.assign(new Error("email required for this poll"), {
+      Object.assign(new Error("sign in or provide an email to vote"), {
         statusCode: 400,
       }),
     );

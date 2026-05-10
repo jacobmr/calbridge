@@ -3,6 +3,7 @@
  * POST /api/polls — create a poll with its candidate options in one shot
  */
 
+import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/client.mjs";
 import { requireUser } from "../../lib/session.mjs";
 import { readJson, sendError } from "../../lib/groups.mjs";
@@ -11,6 +12,7 @@ import {
   insertPollWithOptions,
   loadPollDetail,
 } from "../../lib/polls.mjs";
+import { sendPollInviteEmail } from "../../lib/email.mjs";
 
 async function listPolls(req, res) {
   const { user } = await requireUser(req);
@@ -71,8 +73,28 @@ async function createPoll(req, res) {
   const durationMin = Number(body.duration_min);
   const locationText =
     body.location_text != null ? String(body.location_text).trim() : null;
-  const requireEmail = body.require_email !== false; // default true
+  // require_email is locked on now — we no longer accept truly anonymous
+  // votes. The column stays in the schema for forward compat but every poll
+  // is created with email required.
+  const requireEmail = true;
   const options = Array.isArray(body.options) ? body.options : [];
+
+  // Optional list of email addresses to send the share-link to. Lightly
+  // validated — full RFC checking is overkill; we just want to refuse
+  // obvious mistakes and dedupe.
+  const inviteEmails = Array.isArray(body.invite_emails)
+    ? [
+        ...new Set(
+          body.invite_emails
+            .map((e) =>
+              String(e || "")
+                .trim()
+                .toLowerCase(),
+            )
+            .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)),
+        ),
+      ]
+    : [];
 
   if (!title) {
     return sendError(
@@ -138,7 +160,7 @@ async function createPoll(req, res) {
     );
   }
 
-  const { id } = await insertPollWithOptions({
+  const { id, token } = await insertPollWithOptions({
     tenantId: tenant.id,
     organizerUserId: user.id,
     title,
@@ -149,7 +171,84 @@ async function createPoll(req, res) {
     options: normalized,
   });
 
+  // Persist + send invitation emails. We do this after the poll is committed
+  // so a Resend outage doesn't block the create. Per-address failures are
+  // recorded (email_failed_reason) so the organizer can see them.
+  let invitesSent = 0;
+  let invitesFailed = 0;
+  if (inviteEmails.length > 0) {
+    const db = getDb();
+    const baseUrl = process.env.APP_BASE_URL || "https://www.mical.net";
+    const pollUrl = `${baseUrl}/poll/${token}`;
+
+    // Fetch organizer display name for the email "from" line.
+    const orgRes = await db.execute({
+      sql: "SELECT email, display_name FROM users WHERE id = ? LIMIT 1",
+      args: [user.id],
+    });
+    const organizer = orgRes.rows[0] || {};
+
+    // Insert invite rows first (so we never lose the list even if email
+    // dispatch fails partway), then fan out the emails in parallel.
+    const inviteIds = new Map();
+    for (const email of inviteEmails) {
+      const inviteId = randomUUID();
+      inviteIds.set(email, inviteId);
+      await db.execute({
+        sql: `INSERT INTO poll_invites (id, poll_id, email, invited_at)
+              VALUES (?, ?, ?, ?)
+              ON CONFLICT(poll_id, email) DO NOTHING`,
+        args: [inviteId, id, email, now],
+      });
+    }
+
+    const sends = await Promise.allSettled(
+      inviteEmails.map((email) =>
+        sendPollInviteEmail({
+          toEmail: email,
+          organizerName: organizer.display_name,
+          organizerEmail: organizer.email,
+          pollTitle: title,
+          pollUrl,
+        }).then(
+          (result) => ({ email, result }),
+          (err) => ({ email, error: err }),
+        ),
+      ),
+    );
+    for (const settled of sends) {
+      const v = settled.value;
+      const inviteId = inviteIds.get(v.email);
+      if (v.error) {
+        invitesFailed++;
+        await db.execute({
+          sql: "UPDATE poll_invites SET email_failed_reason = ? WHERE id = ?",
+          args: [String(v.error.message || v.error).slice(0, 200), inviteId],
+        });
+      } else if (v.result?.sent) {
+        invitesSent++;
+        await db.execute({
+          sql: "UPDATE poll_invites SET email_sent_at = ? WHERE id = ?",
+          args: [Date.now(), inviteId],
+        });
+      } else {
+        invitesFailed++;
+        await db.execute({
+          sql: "UPDATE poll_invites SET email_failed_reason = ? WHERE id = ?",
+          args: [v.result?.reason || "unknown", inviteId],
+        });
+      }
+    }
+  }
+
   const detail = await loadPollDetail(id, { withResponses: false });
+  // Surface the invite stats to the UI so the organizer sees how many emails
+  // actually went out vs failed (e.g. when RESEND_API_KEY isn't configured,
+  // every send returns not_configured and the organizer can fall back to
+  // copying the link manually).
+  detail.invites_sent = invitesSent;
+  detail.invites_failed = invitesFailed;
+  detail.invites_total = inviteEmails.length;
   res.statusCode = 201;
   res.setHeader("content-type", "application/json");
   res.end(JSON.stringify(detail));

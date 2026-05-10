@@ -3370,14 +3370,30 @@ async function deletePoll(id, title) {
 // Create-poll modal. Datetime rows let the organizer add as many candidate
 // slots as they want; we ship a sensible default of three blank rows so the
 // UI is usable immediately. The same modal pattern as create-group dialog.
+// Default work hours used by the create-poll slot picker. Matches the
+// booking page's defaults so the experience the organizer sees building a
+// poll mirrors what their respondents will see picking times. We could make
+// these tweakable per-organizer later, but for v1 the defaults are fine.
+const POLL_PICKER_WORK_START = "09:00";
+const POLL_PICKER_WORK_END = "17:00";
+const POLL_PICKER_HORIZON_DAYS = 14;
+const POLL_PICKER_WEEKDAYS_ONLY = true;
+
+// State for the open create-poll dialog. Held in module scope (one dialog
+// at a time) rather than threaded through every helper. selectedSlots is a
+// Set of start_ms numbers — easier to flip on click than chasing DOM state.
+let pickerState = null;
+
 function openCreatePollDialog() {
   $(".sidebar")?.classList.remove("open");
   $(".sidebar-overlay")?.classList.remove("open");
 
+  pickerState = { busy: [], selected: new Set(), durationMin: 30 };
+
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay open";
   overlay.innerHTML = `
-    <div class="modal-dialog create-poll-dialog">
+    <div class="modal-dialog create-poll-dialog" style="max-width:720px">
       <div class="modal-header">
         <h3>New poll</h3>
         <button class="modal-close" type="button" aria-label="Close">×</button>
@@ -3409,16 +3425,20 @@ function openCreatePollDialog() {
           </div>
         </div>
         <div class="form-group">
-          <label class="toggle-label">
-            <input type="checkbox" id="cp-require-email" checked>
-            <span>Require respondents to provide an email</span>
-          </label>
-          <p class="muted" style="margin-top:4px">Off means anonymous votes are allowed. We can't notify them of the winner.</p>
+          <label>Candidate times <span id="cp-selected-count" class="muted">(0 picked)</span></label>
+          <p class="muted" style="font-size:0.85rem;margin:0 0 8px">
+            Click times that work. Slots already busy on your calendar are crossed out.
+          </p>
+          <div id="cp-slot-grid">
+            <div class="loading"><div class="spinner"></div>Loading your calendar…</div>
+          </div>
         </div>
         <div class="form-group">
-          <label>Candidate times</label>
-          <div id="cp-options"></div>
-          <button type="button" class="btn btn-secondary btn-sm" id="cp-add-option" style="margin-top:8px">+ Add another time</button>
+          <label for="cp-invitees">Send invitations to <span class="optional">(optional)</span></label>
+          <textarea id="cp-invitees" rows="2" placeholder="alice@example.com, bob@example.com"></textarea>
+          <p class="muted" style="font-size:0.85rem;margin:4px 0 0">
+            Comma or newline-separated. Recipients get an email with the poll link. You'll also get the link to share manually.
+          </p>
         </div>
       </form>
       <div class="modal-footer">
@@ -3430,17 +3450,11 @@ function openCreatePollDialog() {
   document.body.appendChild(overlay);
   document.body.style.overflow = "hidden";
 
-  const optsEl = overlay.querySelector("#cp-options");
-  // Seed three rows for the default poll shape.
-  for (let i = 0; i < 3; i++) appendOptionRow(optsEl);
-  overlay
-    .querySelector("#cp-add-option")
-    .addEventListener("click", () => appendOptionRow(optsEl));
-
   const close = () => {
     overlay.remove();
     document.body.style.overflow = "";
     document.removeEventListener("keydown", onKey);
+    pickerState = null;
   };
   overlay.querySelector(".modal-close").addEventListener("click", close);
   overlay.querySelector("#cp-cancel").addEventListener("click", close);
@@ -3451,6 +3465,20 @@ function openCreatePollDialog() {
     if (e.key === "Escape") close();
   };
   document.addEventListener("keydown", onKey);
+
+  // Re-render the slot grid whenever duration changes — slot boundaries
+  // shift, and previously-selected slots that fall on non-grid times get
+  // dropped (this is fine; the user re-clicks).
+  overlay.querySelector("#cp-duration").addEventListener("change", (e) => {
+    pickerState.durationMin = Number(e.target.value);
+    pickerState.selected.clear();
+    renderSlotGrid(overlay);
+    updateSelectedCount(overlay);
+  });
+
+  // Kick off the host-availability fetch + render the grid as soon as it
+  // returns. Don't block the modal — the grid shows a loading state.
+  loadHostBusyForPicker(overlay).then(() => renderSlotGrid(overlay));
 
   overlay
     .querySelector("#create-poll-form")
@@ -3464,19 +3492,15 @@ function openCreatePollDialog() {
       const description = overlay.querySelector("#cp-description").value.trim();
       const duration_min = Number(overlay.querySelector("#cp-duration").value);
       const location_text = overlay.querySelector("#cp-location").value.trim();
-      const require_email = overlay.querySelector("#cp-require-email").checked;
+      const inviteRaw = overlay.querySelector("#cp-invitees").value;
+      const invite_emails = inviteRaw
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
 
-      // Pull options. Empty rows are silently dropped — lets the user leave
-      // extra blank rows without forcing them to delete each one.
-      const options = [];
-      for (const input of optsEl.querySelectorAll(
-        "input[type=datetime-local]",
-      )) {
-        const v = input.value;
-        if (!v) continue;
-        const ms = new Date(v).getTime();
-        if (Number.isFinite(ms)) options.push({ start_ms: ms });
-      }
+      const options = [...pickerState.selected]
+        .sort((a, b) => a - b)
+        .map((start_ms) => ({ start_ms }));
 
       if (options.length < 2) {
         submitBtn.disabled = false;
@@ -3493,7 +3517,7 @@ function openCreatePollDialog() {
             description,
             duration_min,
             location_text,
-            require_email,
+            invite_emails,
             options,
           }),
         });
@@ -3501,7 +3525,13 @@ function openCreatePollDialog() {
         await loadPolls();
         const url = pollPublicUrl(created.poll.token);
         copyToClipboard(url);
-        showSuccess(`Poll created. Share link copied to clipboard.`);
+        const inviteNote =
+          (created.invites_total || 0) > 0
+            ? ` · ${created.invites_sent} of ${created.invites_total} invitations sent`
+            : "";
+        showSuccess(
+          `Poll created. Share link copied to clipboard.${inviteNote}`,
+        );
       } catch (err) {
         submitBtn.disabled = false;
         submitBtn.textContent = "Create poll";
@@ -3510,17 +3540,118 @@ function openCreatePollDialog() {
     });
 }
 
-function appendOptionRow(optsEl) {
-  const row = document.createElement("div");
-  row.className = "poll-option-row";
-  row.style.cssText =
-    "display:flex;gap:8px;margin-bottom:6px;align-items:center";
-  row.innerHTML = `
-    <input type="datetime-local" style="flex:1">
-    <button type="button" class="icon-btn" title="Remove">${icon("trash", 14)}</button>
-  `;
-  row.querySelector("button").addEventListener("click", () => row.remove());
-  optsEl.appendChild(row);
+// Fetch the organizer's busy intervals for the slot-picker window. Failure
+// is tolerated — the grid still renders, just without the busy overlay (so
+// the user can pick freely; the schedule path will surface conflicts later).
+async function loadHostBusyForPicker(overlay) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start.getTime() + POLL_PICKER_HORIZON_DAYS * 86400000);
+  try {
+    const data = await api(
+      `/api/polls/host-availability?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`,
+    );
+    pickerState.busy = data.busy || [];
+  } catch {
+    pickerState.busy = [];
+  }
+}
+
+function isBusyAt(startMs, endMs) {
+  for (const b of pickerState.busy) {
+    if (b.start_ms < endMs && b.end_ms > startMs) return true;
+  }
+  return false;
+}
+
+function renderSlotGrid(overlay) {
+  const grid = overlay.querySelector("#cp-slot-grid");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [sh, sm] = POLL_PICKER_WORK_START.split(":").map(Number);
+  const [eh, em] = POLL_PICKER_WORK_END.split(":").map(Number);
+  const stepMs = pickerState.durationMin * 60000;
+
+  const frag = document.createDocumentFragment();
+  let renderedAnyDay = false;
+
+  for (let d = 0; d < POLL_PICKER_HORIZON_DAYS; d++) {
+    const day = new Date(today.getTime() + d * 86400000);
+    const dow = day.getDay();
+    if (POLL_PICKER_WEEKDAYS_ONLY && (dow === 0 || dow === 6)) continue;
+
+    const dayStart = new Date(day);
+    dayStart.setHours(sh, sm, 0, 0);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(eh, em, 0, 0);
+
+    const slotsRow = document.createElement("div");
+    slotsRow.className = "slot-row";
+
+    const header = document.createElement("div");
+    header.className = "slot-row-header";
+    header.textContent = day.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    slotsRow.appendChild(header);
+
+    const slotsContainer = document.createElement("div");
+    slotsContainer.className = "slot-row-slots";
+
+    let cursor = dayStart.getTime();
+    let renderedAnySlot = false;
+    while (cursor + stepMs <= dayEnd.getTime()) {
+      const slotStart = cursor;
+      const slotEnd = cursor + stepMs;
+      // Drop slots already in the past — even on today's row.
+      if (slotStart > Date.now()) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "poll-pick-slot";
+        const busy = isBusyAt(slotStart, slotEnd);
+        if (busy) btn.classList.add("is-busy");
+        if (pickerState.selected.has(slotStart)) btn.classList.add("is-picked");
+        btn.dataset.startMs = String(slotStart);
+        btn.textContent = new Date(slotStart).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        if (busy)
+          btn.title = "Conflicts with an existing event on your calendar";
+        btn.addEventListener("click", () => {
+          if (pickerState.selected.has(slotStart)) {
+            pickerState.selected.delete(slotStart);
+            btn.classList.remove("is-picked");
+          } else {
+            pickerState.selected.add(slotStart);
+            btn.classList.add("is-picked");
+          }
+          updateSelectedCount(overlay);
+        });
+        slotsContainer.appendChild(btn);
+        renderedAnySlot = true;
+      }
+      cursor += stepMs;
+    }
+
+    if (renderedAnySlot) {
+      slotsRow.appendChild(slotsContainer);
+      frag.appendChild(slotsRow);
+      renderedAnyDay = true;
+    }
+  }
+
+  grid.replaceChildren(frag);
+  if (!renderedAnyDay) {
+    grid.textContent = "No future work-hour slots in the next two weeks.";
+  }
+}
+
+function updateSelectedCount(overlay) {
+  const n = pickerState.selected.size;
+  overlay.querySelector("#cp-selected-count").textContent = `(${n} picked)`;
 }
 
 // Detail view: tally grid (rows = respondents, columns = options) + a
