@@ -652,41 +652,54 @@ This is the same sync engine, but the target calendar belongs to a different use
 
 ## 10. Backlog (post-launch)
 
-- **Pricing & billing.** Currently no monetization. Initial thinking
-  to validate before building:
+- **Pricing & billing.** Software cost is near zero per user, so the
+  strategy is aggressive market-share pricing. Validate before building.
+
+  Working numbers (post-discussion, undercutting Calendly $10-16
+  individual / $20+ team and matching/beating OneCal's $5-10):
 
   *Free tier* (acquisition):
     - 1 connected calendar
     - 1 sync flow
     - 1 booking page (event type)
-    - No groups (or: 1 group, max 2 members)
+    - No groups
     - "Sent with MiCal" footer on booking pages
 
-  *Pro — ~$10/mo* (the consultant-with-5-clients case):
-    - Unlimited connected calendars
-    - Unlimited sync flows with all rules (busy/full, prefix, work-hours, etc.)
-    - Unlimited booking pages
-    - Custom domain / subdomain for booking pages
-    - Removed "Sent with MiCal" footer
+  *Individual — $5/mo or $48/yr* (~20% annual discount):
+    - Unlimited calendars / sync flows / booking pages
+    - All sync rules (busy/full, prefix, work-hours)
+    - Removed branding footer
+    - Custom subdomain (jmr.mical.net) when shipped
 
-  *Family — ~$15/mo flat* (the Andersons case, NOT per-seat):
-    - Everything in Pro for the family owner
-    - Up to 5 members in one family group
-    - Each member gets their own Pro-equivalent personal scope
+  *Family — $7/mo or $60/yr flat* (NOT per-seat):
+    - Everything in Individual for the family owner
+    - Up to 5 members in one family group; each gets the equivalent
+      of Individual for their own scope
     - Cross-tenant push between members
     - This is the differentiated tier — Google Family / iCloud Family
-      don't bridge providers; we do
+      don't bridge providers; we do. $1.40/seat is below psychological
+      friction.
 
-  *Team — $8/seat/mo* (agencies, small teams):
-    - Pro features per seat
-    - Unlimited team groups + members
+  *Team — $5/seat/mo or $48/seat/yr* (agencies, small businesses):
+    - Per-seat. Unlimited team groups
     - Group-scoped booking pages ("book time with our team")
     - Admin role + audit log
+    - Different audience than Family — deductible business expense,
+      higher willingness to pay, justifies separate tier
 
-  Open questions: trial length (14 days / 30 days / freemium forever?);
-  do we accept Stripe/Paddle (sales tax handling); do we offer annual
-  discounts (~15-20% standard); do families pay for invitees who only
-  use the family side and don't have personal Pro features.
+  *Original founder proposal was $2.50 / $7 / per-seat-team. Pushed
+  individual up to $5 for psychological positioning ("real product")
+  and to keep the per-month → per-seat-family math sensible.*
+
+  Open questions parked:
+    - Trial length (14d / 30d / freemium-forever)?
+    - Stripe Checkout vs Paddle (sales tax handling — Paddle's MoR
+      model offloads VAT/tax compliance globally, worth the ~5%)?
+    - Do family invitees who never use personal features still
+      count against the 5-seat cap? (Probably yes — keeps the
+      pricing model legible.)
+    - Lifetime deal as an early-bird signal? (TidyCal popularized
+      this for booking tools — ~$59-99 lifetime moves volume early.)
 
   Implementation when we get there: Stripe Checkout + customer portal
   for self-serve, webhooks → `tenants.plan_*` columns, feature gates
