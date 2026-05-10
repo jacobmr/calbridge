@@ -2282,11 +2282,11 @@ function renderSyncFlows() {
               ${calOptions}
             </select>
           </div>
-          <div class="form-group">
-            <label for="sf-ord">Priority</label>
-            <input type="number" id="sf-ord" value="0" min="0">
-            <p class="form-hint">Lower runs first. Leave at 0 unless flows need to chain.</p>
-          </div>
+          <!-- Priority lives in Advanced now — most users never need it,
+               and a number input next to the source/target dropdowns
+               implied otherwise. Hidden field carries the value through
+               for new flows; the Advanced block re-exposes it for editing. -->
+          <input type="hidden" id="sf-ord" value="0">
         </div>
 
         <!-- Rule toggles. Replaces the v1 dual NL+toggle paradigm — the
@@ -2368,6 +2368,12 @@ function renderSyncFlows() {
               <input type="number" id="sf-buffer-after" value="0" min="0"> <span class="form-suffix">min</span>
             </div>
           </div>
+          <div class="form-group">
+            <label for="sf-ord-visible">Priority</label>
+            <input type="number" id="sf-ord-visible" value="0" min="0"
+                   oninput="document.getElementById('sf-ord').value = this.value">
+            <p class="form-hint">Lower runs first. Leave at 0 unless one flow needs to chain after another.</p>
+          </div>
         </div>
 
         <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-top:16px;">
@@ -2389,6 +2395,11 @@ function renderSyncFlows() {
     $("#sf-source").value = editFlow.source_calendar_id;
     $("#sf-target").value = editFlow.target_calendar_id;
     $("#sf-ord").value = editFlow.ord;
+    const ordVisible = $("#sf-ord-visible");
+    if (ordVisible) ordVisible.value = editFlow.ord;
+    // Auto-expand Advanced when editing a flow that has a non-default
+    // priority — otherwise the user wonders where it went.
+    if (Number(editFlow.ord) !== 0) toggleAdvancedOptions();
     $("#sf-enabled").checked = editFlow.enabled;
     const opts = editFlow.options_json ? JSON.parse(editFlow.options_json) : {};
     syncFormFromOptions(opts);
