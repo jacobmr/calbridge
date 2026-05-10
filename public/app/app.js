@@ -51,6 +51,50 @@ function icon(name, size = 18) {
   return `<svg class="icon icon-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
+// Empty-state illustration: a soft background blob in --cloud + brand-color
+// foreground icon. Bigger and warmer than a plain icon — gives a state
+// some shape without leaning on stock illustrations.
+function illustration(name, size = 88) {
+  const body = ICONS[name];
+  if (!body) return "";
+  // The 24×24 icon body draws from (0,0) to (24,24). To put it inside an
+  // 88×88 frame centered, translate by (20,20) and scale 2× → footprint
+  // becomes (20,20)–(68,68), centered around (44,44).
+  return `
+    <svg class="illust illust-${name}" width="${size}" height="${size}" viewBox="0 0 88 88" aria-hidden="true">
+      <circle cx="44" cy="44" r="40" fill="rgba(0, 194, 168, 0.08)"/>
+      <circle cx="44" cy="44" r="40" fill="none" stroke="rgba(0, 194, 168, 0.18)" stroke-width="1"/>
+      <g transform="translate(20 20) scale(2)" fill="none" stroke="var(--bridge-blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        ${body}
+      </g>
+    </svg>
+  `;
+}
+
+// Standard empty-state card. One illustration + headline + subhead + CTA.
+function emptyState({
+  illustrationName,
+  headline,
+  subhead,
+  ctaLabel,
+  ctaOnclick,
+  ctaHref,
+}) {
+  const cta = ctaLabel
+    ? ctaHref
+      ? `<a class="btn btn-primary" href="${escapeHtml(ctaHref)}">${escapeHtml(ctaLabel)}</a>`
+      : `<button class="btn btn-primary" onclick="${ctaOnclick || ""}">${escapeHtml(ctaLabel)}</button>`
+    : "";
+  return `
+    <div class="empty-state">
+      ${illustration(illustrationName)}
+      <h3>${escapeHtml(headline)}</h3>
+      ${subhead ? `<p>${escapeHtml(subhead)}</p>` : ""}
+      ${cta ? `<div class="empty-state-cta">${cta}</div>` : ""}
+    </div>
+  `;
+}
+
 function formatDate(ms) {
   if (!ms) return "—";
   const d = new Date(Number(ms));
@@ -1321,7 +1365,7 @@ function renderOverview(data) {
   if (c.calendars === 0) {
     container.innerHTML = `
       <div class="card empty-hero">
-        <div class="empty-state-icon">${icon("calendar", 48)}</div>
+        ${illustration("calendar", 96)}
         <h2>Connect your first calendar</h2>
         <p>MiCal needs at least one calendar before it can sync anything. Pick a provider to get started.</p>
         <div class="hero-actions">
@@ -1498,7 +1542,7 @@ function renderCalendars() {
   if (accountGroups.size === 0 && icsFeeds.length === 0) {
     container.innerHTML = `
       <div class="card empty-hero">
-        <div class="empty-state-icon">${icon("calendar", 48)}</div>
+        ${illustration("calendar", 96)}
         <h2>Connect a calendar</h2>
         <p>Pick a provider to link your calendars, or add an ICS feed by URL.</p>
         <div class="hero-actions">
@@ -1632,13 +1676,12 @@ function renderPreview(discovered) {
   const body = $("#preview-modal-body");
 
   if (discovered.length === 0) {
-    body.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">${icon("search", 40)}</div>
-        <h3>No calendars found</h3>
-        <p>Make sure you have linked a Google or Outlook account.</p>
-      </div>
-    `;
+    body.innerHTML = emptyState({
+      illustrationName: "search",
+      headline: "No calendars found",
+      subhead:
+        "Link a Google or Outlook account first, then come back to discover.",
+    });
     return;
   }
 
@@ -1819,13 +1862,12 @@ function renderSyncFlows() {
 
   let listHtml = "";
   if (syncFlows.length === 0) {
-    listHtml = `
-      <div class="empty-state">
-        <div class="empty-state-icon">${icon("sync", 40)}</div>
-        <h3>No sync flows yet</h3>
-        <p>Create a flow to automatically sync events between calendars.</p>
-      </div>
-    `;
+    listHtml = emptyState({
+      illustrationName: "sync",
+      headline: "Set up your first sync flow",
+      subhead:
+        "Tell MiCal to copy events from one calendar to another. Set rules once — they run automatically.",
+    });
   } else {
     // Hide Priority column entirely if every flow has the default ord=0 —
     // a column of identical zeros is pure noise. It reappears as soon as the
@@ -2278,13 +2320,12 @@ function renderEventTypes() {
 
   let listHtml = "";
   if (eventTypes.length === 0) {
-    listHtml = `
-      <div class="empty-state">
-        <div class="empty-state-icon">${icon("list", 40)}</div>
-        <h3>No event types yet</h3>
-        <p>Create event types to share public booking pages.</p>
-      </div>
-    `;
+    listHtml = emptyState({
+      illustrationName: "list",
+      headline: "Set up a booking page",
+      subhead:
+        "Pick a name, a duration, and a calendar — clients book without the back-and-forth.",
+    });
   } else {
     listHtml = `
       <div class="table-wrap">
@@ -2679,13 +2720,12 @@ function renderBookings() {
 
   let listHtml = "";
   if (bookings.length === 0) {
-    listHtml = `
-      <div class="empty-state">
-        <div class="empty-state-icon">${icon("book", 40)}</div>
-        <h3>No bookings yet</h3>
-        <p>Bookings will appear here when people schedule through your public pages.</p>
-      </div>
-    `;
+    listHtml = emptyState({
+      illustrationName: "book",
+      headline: "Bookings will land here",
+      subhead:
+        "When someone schedules through one of your event types, you'll see them in this list.",
+    });
   } else {
     listHtml = `
       <div class="table-wrap">

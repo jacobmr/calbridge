@@ -581,6 +581,191 @@ test("merged events: free_busy strips titles, full keeps them", async () => {
   assert.equal(free.conflicts.length, 0);
 });
 
+test("merged events: one slow provider doesn't block the rest", async () => {
+  const { migrate } = await import("../db/migrate.mjs");
+  await migrate({ verbose: false });
+  const { getDb } = await import("../db/client.mjs");
+  const { encrypt } = await import("../lib/crypto.mjs");
+  const db = getDb();
+
+  const aliceId = randomUUID();
+  const bobId = randomUUID();
+  const charlieId = randomUUID();
+  const aliceTenantId = randomUUID();
+  const bobTenantId = randomUUID();
+  const aliceCalId = randomUUID();
+  const bobCalId = randomUUID();
+  const aliceOauth = randomUUID();
+  const bobOauth = randomUUID();
+  const groupId = randomUUID();
+  const now = Date.now();
+
+  await db.execute({
+    sql: "INSERT INTO users (id, email, created_at) VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)",
+    args: [
+      aliceId,
+      `aa-${now}@x.com`,
+      now,
+      bobId,
+      `bb-${now}@x.com`,
+      now,
+      charlieId,
+      `cc-${now}@x.com`,
+      now,
+    ],
+  });
+  await db.execute({
+    sql: "INSERT INTO tenants (id, slug, name, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)",
+    args: [
+      aliceTenantId,
+      `aat-${now}`,
+      "A",
+      aliceId,
+      now,
+      bobTenantId,
+      `bbt-${now}`,
+      "B",
+      bobId,
+      now,
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO oauth_accounts (id, tenant_id, user_id, provider, provider_account_id, email, refresh_token_enc, scopes, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      aliceOauth,
+      aliceTenantId,
+      aliceId,
+      "google",
+      "a",
+      "a@x.com",
+      encrypt("rt"),
+      "",
+      now,
+      bobOauth,
+      bobTenantId,
+      bobId,
+      "google",
+      "b",
+      "b@x.com",
+      encrypt("rt"),
+      "",
+      now,
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO calendars (id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role)
+          VALUES (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      aliceCalId,
+      aliceTenantId,
+      aliceOauth,
+      "google",
+      "alice@cal",
+      "Alice fast",
+      "owner",
+      bobCalId,
+      bobTenantId,
+      bobOauth,
+      "google",
+      "bob@cal",
+      "Bob slow",
+      "owner",
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO groups (id, name, slug, type, created_by_user_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [groupId, "F", `slow-${now}`, "family", aliceId, now, now],
+  });
+  await db.execute({
+    sql: `INSERT INTO group_memberships (id, group_id, user_id, role, status, joined_at, created_at)
+          VALUES (?, ?, ?, 'owner', 'active', ?, ?), (?, ?, ?, 'member', 'active', ?, ?), (?, ?, ?, 'member', 'active', ?, ?)`,
+    args: [
+      randomUUID(),
+      groupId,
+      aliceId,
+      now,
+      now,
+      randomUUID(),
+      groupId,
+      bobId,
+      now,
+      now,
+      randomUUID(),
+      groupId,
+      charlieId,
+      now,
+      now,
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO group_calendar_shares (id, group_id, user_id, calendar_id, share_level, created_at)
+          VALUES (?, ?, ?, ?, 'full', ?), (?, ?, ?, ?, 'full', ?)`,
+    args: [
+      randomUUID(),
+      groupId,
+      aliceId,
+      aliceCalId,
+      now,
+      randomUUID(),
+      groupId,
+      bobId,
+      bobCalId,
+      now,
+    ],
+  });
+
+  // One fast provider, one that hangs past the 8s deadline.
+  const { fetchGroupEvents } = await import("../lib/group-events.mjs");
+  const t0 = Date.now();
+  const result = await fetchGroupEvents({
+    groupId,
+    viewerUserId: charlieId,
+    timeMin: "2026-08-01T00:00:00Z",
+    timeMax: "2026-08-08T00:00:00Z",
+    getProviderClient: async (cal) => ({
+      provider: "google",
+      capabilities: { canWrite: true, canUpdate: true, canDelete: true },
+      async listCalendars() {
+        return [];
+      },
+      async listEvents() {
+        if (cal.id === aliceCalId) {
+          return [
+            {
+              id: "fast-1",
+              summary: "Fast event",
+              start: { dateTime: "2026-08-02T10:00:00Z" },
+              end: { dateTime: "2026-08-02T11:00:00Z" },
+            },
+          ];
+        }
+        // Bob's calendar hangs longer than the 8s deadline. Should be dropped.
+        await new Promise((r) => setTimeout(r, 12000));
+        return [];
+      },
+      async createEvent() {},
+      async updateEvent() {},
+      async deleteEvent() {},
+    }),
+  });
+  const elapsed = Date.now() - t0;
+
+  // Alice's event lands; Bob's slow fetch was dropped after the deadline.
+  assert.equal(
+    result.length,
+    1,
+    "fast event renders even though slow fetch timed out",
+  );
+  assert.equal(result[0].sharer_user_id, aliceId);
+  // We should have given up around the 8s mark — well under the 12s sleep.
+  assert.ok(
+    elapsed < 11000,
+    `should not wait for full 12s sleep; took ${elapsed}ms`,
+  );
+});
+
 test("group cross-tenant push: applies prefix and namespaces markers", async () => {
   const { migrate } = await import("../db/migrate.mjs");
   await migrate({ verbose: false });
