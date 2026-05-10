@@ -10,6 +10,13 @@ let bookings = [];
 let editingEventTypeId = null;
 let editingSyncFlowId = null;
 
+// Group context. When null, the dashboard shows the user's personal
+// scope (existing behavior). When a group is selected, future Phase 4
+// rendering will scope the merged view, calendars, etc. to it.
+let groups = [];
+let currentGroupId = null;
+const PERSONAL_LABEL = "Personal";
+
 // ─── Helpers ───
 function $(sel) {
   return document.querySelector(sel);
@@ -195,6 +202,149 @@ async function api(url, options = {}) {
   }
 
   return data;
+}
+
+// ─── Group switcher ───
+//
+// Hidden entirely when the user is in zero groups — "Personal" alone is
+// not a switch, just a default. Once any group exists, the switcher
+// appears in the top bar with "Personal" + each group + a "Create group"
+// link. Selecting a group sets currentGroupId; full merged-view rendering
+// lands in T4.5.
+async function loadGroups() {
+  try {
+    groups = (await api("/api/groups")) || [];
+  } catch {
+    groups = [];
+  }
+  renderGroupSwitcher();
+}
+
+function renderGroupSwitcher() {
+  const el = $("#group-switcher");
+  if (!el) return;
+
+  if (groups.length === 0) {
+    el.hidden = true;
+    el.replaceChildren();
+    return;
+  }
+  el.hidden = false;
+
+  const current =
+    currentGroupId == null
+      ? PERSONAL_LABEL
+      : groups.find((g) => g.id === currentGroupId)?.name || PERSONAL_LABEL;
+
+  const wrap = document.createElement("div");
+  wrap.className = "switcher-wrap";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "switcher-button";
+  button.setAttribute("aria-haspopup", "true");
+  button.setAttribute("aria-expanded", "false");
+  button.addEventListener("click", () => toggleSwitcherMenu());
+  button.innerHTML = `
+    <span class="switcher-label">${escapeHtml(current)}</span>
+    <span class="switcher-chevron">▾</span>
+  `;
+  wrap.appendChild(button);
+
+  const menu = document.createElement("div");
+  menu.className = "switcher-menu";
+  menu.id = "switcher-menu";
+  menu.hidden = true;
+
+  // Personal entry
+  const personal = document.createElement("button");
+  personal.type = "button";
+  personal.className =
+    "switcher-item" + (currentGroupId == null ? " active" : "");
+  personal.textContent = PERSONAL_LABEL;
+  personal.addEventListener("click", () => selectGroup(null));
+  menu.appendChild(personal);
+
+  for (const g of groups) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className =
+      "switcher-item" + (currentGroupId === g.id ? " active" : "");
+    item.innerHTML = `
+      <span class="switcher-item-name">${escapeHtml(g.name)}</span>
+      <span class="switcher-item-meta">${g.type === "family" ? "Family" : "Team"} · ${g.member_count}</span>
+    `;
+    item.addEventListener("click", () => selectGroup(g.id));
+    menu.appendChild(item);
+  }
+
+  const sep = document.createElement("div");
+  sep.className = "switcher-sep";
+  menu.appendChild(sep);
+
+  const create = document.createElement("button");
+  create.type = "button";
+  create.className = "switcher-item switcher-create";
+  create.textContent = "+ Create group";
+  create.addEventListener("click", () => {
+    closeSwitcherMenu();
+    openCreateGroupDialog();
+  });
+  menu.appendChild(create);
+
+  wrap.appendChild(menu);
+  el.replaceChildren(wrap);
+}
+
+function toggleSwitcherMenu() {
+  const menu = $("#switcher-menu");
+  const button = $("#group-switcher .switcher-button");
+  if (!menu || !button) return;
+  const willOpen = menu.hidden;
+  menu.hidden = !willOpen;
+  button.setAttribute("aria-expanded", String(willOpen));
+}
+
+function closeSwitcherMenu() {
+  const menu = $("#switcher-menu");
+  const button = $("#group-switcher .switcher-button");
+  if (menu) menu.hidden = true;
+  if (button) button.setAttribute("aria-expanded", "false");
+}
+
+// Click-outside to close.
+document.addEventListener("click", (e) => {
+  const wrap = e.target.closest?.(".switcher-wrap");
+  if (!wrap) closeSwitcherMenu();
+});
+
+function selectGroup(groupId) {
+  currentGroupId = groupId;
+  closeSwitcherMenu();
+  renderGroupSwitcher();
+  // Phase 4.5 will re-render the main content here. For now we just refresh
+  // the active tab so existing handlers run with the new context.
+  showTab(currentTab);
+}
+
+// Minimal "create group" prompt for now — full onboarding lands in T5.3.
+async function openCreateGroupDialog() {
+  const name = prompt('Name your group (e.g. "The Andersons")');
+  if (!name || !name.trim()) return;
+  const type = confirm("OK = Family · Cancel = Team") ? "family" : "team";
+  try {
+    const created = await api("/api/groups", {
+      method: "POST",
+      body: JSON.stringify({ name: name.trim(), type }),
+    });
+    groups = [...groups, created];
+    selectGroup(created.id);
+    showSuccess(
+      `${type === "family" ? "Family" : "Team"} "${created.name}" created.`,
+    );
+  } catch (err) {
+    showError(err.message);
+  }
 }
 
 // ─── Navigation ───
@@ -1829,6 +1979,8 @@ async function init() {
   try {
     currentUser = await api("/api/auth/me");
     renderUserInfo();
+    // Kick off group load in parallel — switcher self-renders when ready.
+    loadGroups();
     showTab("overview");
   } catch (err) {
     // 401 handled by api()

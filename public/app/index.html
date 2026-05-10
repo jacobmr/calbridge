@@ -199,7 +199,9 @@
             </svg>
           </button>
           <h1 id="page-title">Dashboard</h1>
-          <div style="width: 40px"></div>
+          <!-- Group switcher mounts here when the user has ≥1 group. Hidden
+               by default; populated by renderGroupSwitcher() after groups load. -->
+          <div id="group-switcher" class="group-switcher" hidden></div>
         </header>
 
         <div class="page-content">
