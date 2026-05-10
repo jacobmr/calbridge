@@ -404,3 +404,179 @@ test("group shares + receive settings", async () => {
   });
   assert.equal(afterDelete.body.mine.length, 0);
 });
+
+test("merged events: free_busy strips titles, full keeps them", async () => {
+  const { migrate } = await import("../db/migrate.mjs");
+  await migrate({ verbose: false });
+  const { getDb } = await import("../db/client.mjs");
+  const { encrypt } = await import("../lib/crypto.mjs");
+  const db = getDb();
+
+  const aliceId = randomUUID();
+  const bobId = randomUUID();
+  const aliceTenantId = randomUUID();
+  const aliceCalId = randomUUID();
+  const aliceOauthId = randomUUID();
+  const groupId = randomUUID();
+  const now = Date.now();
+
+  await db.execute({
+    sql: "INSERT INTO users (id, email, display_name, created_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
+    args: [
+      aliceId,
+      `a-${now}@x.com`,
+      "Alice",
+      now,
+      bobId,
+      `b-${now}@x.com`,
+      "Bob",
+      now,
+    ],
+  });
+  await db.execute({
+    sql: "INSERT INTO tenants (id, slug, name, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?)",
+    args: [aliceTenantId, `at-${now}`, "Alice", aliceId, now],
+  });
+  await db.execute({
+    sql: `INSERT INTO oauth_accounts (id, tenant_id, user_id, provider, provider_account_id, email, refresh_token_enc, scopes, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      aliceOauthId,
+      aliceTenantId,
+      aliceId,
+      "google",
+      "alice",
+      "a@x.com",
+      encrypt("rt"),
+      "",
+      now,
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO calendars (id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      aliceCalId,
+      aliceTenantId,
+      aliceOauthId,
+      "google",
+      "alice@cal",
+      "Alice Personal",
+      "owner",
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO groups (id, name, slug, type, created_by_user_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [groupId, "F", `f-${now}`, "family", aliceId, now, now],
+  });
+  await db.execute({
+    sql: `INSERT INTO group_memberships (id, group_id, user_id, role, status, joined_at, created_at)
+          VALUES (?, ?, ?, 'owner', 'active', ?, ?), (?, ?, ?, 'member', 'active', ?, ?)`,
+    args: [
+      randomUUID(),
+      groupId,
+      aliceId,
+      now,
+      now,
+      randomUUID(),
+      groupId,
+      bobId,
+      now,
+      now,
+    ],
+  });
+
+  // Stub provider returns a single event
+  const stubClient = {
+    provider: "google",
+    capabilities: { canWrite: true, canUpdate: true, canDelete: true },
+    async listCalendars() {
+      return [];
+    },
+    async listEvents() {
+      return [
+        {
+          id: "evt-1",
+          summary: "Top secret meeting",
+          description: "details",
+          location: "HQ",
+          start: { dateTime: "2026-06-15T18:00:00Z" },
+          end: { dateTime: "2026-06-15T19:00:00Z" },
+        },
+      ];
+    },
+    async createEvent() {},
+    async updateEvent() {},
+    async deleteEvent() {},
+  };
+
+  const { fetchGroupEvents, computeGroupAvailability } =
+    await import("../lib/group-events.mjs");
+
+  // Case 1: Alice shares full → Bob (no receive setting → defaults to full)
+  await db.execute({
+    sql: `INSERT INTO group_calendar_shares (id, group_id, user_id, calendar_id, share_level, created_at)
+          VALUES (?, ?, ?, ?, 'full', ?)`,
+    args: [randomUUID(), groupId, aliceId, aliceCalId, now],
+  });
+  const fullEvents = await fetchGroupEvents({
+    groupId,
+    viewerUserId: bobId,
+    timeMin: "2026-06-14T00:00:00Z",
+    timeMax: "2026-06-16T00:00:00Z",
+    getProviderClient: async () => stubClient,
+  });
+  assert.equal(fullEvents.length, 1);
+  assert.equal(
+    fullEvents[0].summary,
+    "Top secret meeting",
+    "full level keeps title",
+  );
+  assert.equal(fullEvents[0].level, "full");
+  assert.equal(fullEvents[0].sharer_user_id, aliceId);
+
+  // Case 2: Bob configures receive_level='free_busy' — even though Alice
+  // shares 'full', the narrower wins.
+  await db.execute({
+    sql: `INSERT INTO group_receive_settings
+            (id, group_id, receiver_user_id, sharer_user_id, receive_level, push_level, acceptance_mode, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'free_busy', 'none', 'auto', ?, ?)`,
+    args: [randomUUID(), groupId, bobId, aliceId, now, now],
+  });
+  const fbEvents = await fetchGroupEvents({
+    groupId,
+    viewerUserId: bobId,
+    timeMin: "2026-06-14T00:00:00Z",
+    timeMax: "2026-06-16T00:00:00Z",
+    getProviderClient: async () => stubClient,
+  });
+  assert.equal(fbEvents.length, 1);
+  assert.equal(fbEvents[0].summary, null, "free_busy strips title");
+  assert.equal(fbEvents[0].description, null);
+  assert.equal(fbEvents[0].location, null);
+  assert.equal(fbEvents[0].level, "free_busy");
+
+  // Case 3: availability check that overlaps the event
+  const conflict = await computeGroupAvailability({
+    groupId,
+    viewerUserId: bobId,
+    windowStart: "2026-06-15T18:30:00Z",
+    windowEnd: "2026-06-15T20:00:00Z",
+    getProviderClient: async () => stubClient,
+  });
+  assert.equal(conflict.free, false);
+  assert.equal(conflict.conflicts.length, 1);
+  assert.deepEqual(conflict.busyMemberIds, [aliceId]);
+
+  // Case 4: window outside the event
+  const free = await computeGroupAvailability({
+    groupId,
+    viewerUserId: bobId,
+    windowStart: "2026-06-15T22:00:00Z",
+    windowEnd: "2026-06-15T23:00:00Z",
+    getProviderClient: async () => stubClient,
+  });
+  assert.equal(free.free, true);
+  assert.equal(free.conflicts.length, 0);
+});

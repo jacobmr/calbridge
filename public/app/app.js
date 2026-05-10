@@ -336,9 +336,27 @@ function selectGroup(groupId) {
   currentGroupId = groupId;
   closeSwitcherMenu();
   renderGroupSwitcher();
-  // Phase 4.5 will re-render the main content here. For now we just refresh
-  // the active tab so existing handlers run with the new context.
-  showTab(currentTab);
+  // Refresh the schedule nav item's visibility for the new context.
+  // We don't have fresh counts here — re-fetch overview to pick them up,
+  // but optimistically toggle the group-schedule button now so the user
+  // sees it appear immediately.
+  const sched = document.querySelector('.nav-item[data-tab="group-schedule"]');
+  if (sched) sched.style.display = currentGroupId != null ? "" : "none";
+
+  // If the user had been on group-schedule/group-settings and switched to
+  // Personal, those tabs no longer apply — kick back to Overview.
+  if (
+    currentGroupId == null &&
+    (currentTab === "group-schedule" || currentTab === "group-settings")
+  ) {
+    showTab("overview");
+  } else if (currentGroupId != null) {
+    // Default a fresh group selection to its merged schedule — that's
+    // the answer to "what's going on with my family right now?".
+    showTab("group-schedule");
+  } else {
+    showTab(currentTab);
+  }
 }
 
 // Minimal "create group" prompt for now — full onboarding lands in T5.3.
@@ -769,6 +787,278 @@ async function renameGroup() {
   }
 }
 
+// ─── Group schedule (merged view + availability widget) ───
+//
+// Two stacked sections:
+//   1. Ask the family — quick what/when/duration → free or conflict
+//   2. Agenda — events for the next 14 days, grouped by day, color-coded
+//      by member. Free/busy events render as "Busy" rather than leaking
+//      the title that the sharer didn't grant access to.
+let groupScheduleState = {
+  detail: null,
+  events: [],
+  availability: null, // { window, free, conflicts } from the most recent check
+};
+
+// Stable color per member id, pulled from a small palette and hashed by uuid.
+const MEMBER_COLORS = [
+  "#0F4C81",
+  "#00C2A8",
+  "#E07A5F",
+  "#9B5DE5",
+  "#3D5A80",
+  "#EE6C4D",
+  "#577590",
+  "#E07856",
+];
+function colorForMember(userId) {
+  let h = 0;
+  for (const ch of String(userId)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return MEMBER_COLORS[h % MEMBER_COLORS.length];
+}
+
+async function loadGroupSchedule() {
+  const container = $("#group-schedule-content");
+  if (!currentGroupId) {
+    container.innerHTML = `
+      <div class="card empty-hero">
+        <h2>No group selected</h2>
+        <p>Pick a group from the switcher above to see its schedule.</p>
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading schedule…</div>';
+  try {
+    const [detail, eventsResp] = await Promise.all([
+      api(`/api/groups/${currentGroupId}`),
+      api(`/api/groups/${currentGroupId}/events`),
+    ]);
+    groupScheduleState.detail = detail;
+    groupScheduleState.events = eventsResp.events || [];
+    renderGroupSchedule();
+  } catch (err) {
+    if (err.message !== "unauthorized") {
+      container.innerHTML = `<div class="error-banner">Failed to load: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function renderGroupSchedule() {
+  const { detail, events, availability } = groupScheduleState;
+  const container = $("#group-schedule-content");
+  if (!detail) return;
+
+  const memberLegend = (detail.members || [])
+    .filter((m) => m.status === "active")
+    .map((m) => {
+      const display =
+        m.display_name || (m.email || "").split("@")[0] || m.email;
+      return `
+        <span class="legend-chip">
+          <span class="legend-dot" style="background:${colorForMember(m.user_id)}"></span>
+          ${escapeHtml(display)}
+        </span>
+      `;
+    })
+    .join("");
+
+  // Group events by local date for an agenda view. Headerless when empty
+  // so we don't shout "Tuesday" with nothing under it.
+  const buckets = bucketEventsByDay(events);
+  const agendaHtml = buckets.length
+    ? buckets.map(renderDayBucket).join("")
+    : `
+      <div class="card empty-hero">
+        <h2>No events to show</h2>
+        <p>Either nobody has shared a calendar yet, or there's nothing scheduled in the next two weeks. ${
+          detail.my_role === "owner" || detail.my_role === "admin"
+            ? '<a href="#" onclick="showTab(\'group-settings\');return false;">Configure sharing</a> to start.'
+            : ""
+        }</p>
+      </div>
+    `;
+
+  container.innerHTML = `
+    <div class="card schedule-ask">
+      <div class="card-header"><div class="card-title">Ask the ${detail.type === "family" ? "family" : "team"}</div></div>
+      <p class="muted">Will it work? Pick a time and we'll check everyone's calendars.</p>
+      <form id="ask-form" class="ask-form" onsubmit="checkAvailability(event)">
+        <div class="ask-fields">
+          <label class="field-inline">
+            <span>What</span>
+            <input type="text" id="ask-what" placeholder="Dinner with the Smiths" required>
+          </label>
+          <label class="field-inline">
+            <span>When</span>
+            <input type="datetime-local" id="ask-when" required>
+          </label>
+          <label class="field-inline">
+            <span>Duration</span>
+            <select id="ask-duration">
+              <option value="30">30 min</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120" selected>2 hours</option>
+              <option value="180">3 hours</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-primary">Check</button>
+        </div>
+      </form>
+      ${availability ? renderAvailabilityResult(availability, detail) : ""}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Next 14 days</div>
+        <div class="member-legend">${memberLegend}</div>
+      </div>
+      ${agendaHtml}
+    </div>
+  `;
+}
+
+function bucketEventsByDay(events) {
+  const map = new Map();
+  for (const e of events) {
+    const ms = e.start?.dateTime
+      ? Date.parse(e.start.dateTime)
+      : e.start?.date
+        ? Date.parse(`${e.start.date}T00:00:00`)
+        : null;
+    if (!ms) continue;
+    const d = new Date(ms);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (!map.has(key)) map.set(key, { key, date: d, items: [] });
+    map.get(key).items.push(e);
+  }
+  return [...map.values()].sort((a, b) => a.date - b.date);
+}
+
+function renderDayBucket({ date, items }) {
+  const isToday = isSameDay(date, new Date());
+  const isTomorrow = isSameDay(date, new Date(Date.now() + 24 * 3600 * 1000));
+  const label = isToday
+    ? "Today"
+    : isTomorrow
+      ? "Tomorrow"
+      : date.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "short",
+          day: "numeric",
+        });
+
+  return `
+    <div class="day-bucket">
+      <h3 class="day-header">${escapeHtml(label)}</h3>
+      <div class="day-events">
+        ${items.map(renderScheduleEvent).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function isSameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function renderScheduleEvent(e) {
+  const color = colorForMember(e.sharer_user_id);
+  const start = e.start?.dateTime ? new Date(e.start.dateTime) : null;
+  const end = e.end?.dateTime ? new Date(e.end.dateTime) : null;
+  const isAllDay = !!e.start?.date;
+  const time = isAllDay
+    ? "All day"
+    : start
+      ? `${formatTime(start)}${end ? ` – ${formatTime(end)}` : ""}`
+      : "";
+  const title = e.level === "free_busy" ? "Busy" : e.summary || "(Untitled)";
+  const titleClass =
+    e.level === "free_busy" ? "event-title muted" : "event-title";
+  return `
+    <div class="schedule-event" style="--member-color: ${color}">
+      <span class="event-time">${escapeHtml(time)}</span>
+      <span class="event-bar"></span>
+      <div class="event-body">
+        <div class="${titleClass}">${escapeHtml(title)}</div>
+        <div class="event-meta">
+          <span class="event-member">${escapeHtml(e.sharer_display)}</span>
+          ${e.location ? ` · <span class="event-location">${escapeHtml(e.location)}</span>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function formatTime(d) {
+  return d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function renderAvailabilityResult(av, detail) {
+  if (av.free) {
+    return `
+      <div class="ask-result ask-ok">
+        ${icon("check", 18)}
+        <div>
+          <strong>All free.</strong>
+          <div class="muted">Nobody in the ${detail.type === "family" ? "family" : "team"} has a conflict for that time.</div>
+        </div>
+      </div>
+    `;
+  }
+  // Find display names for busy members
+  const memberById = new Map(
+    (detail.members || []).map((m) => [
+      m.user_id,
+      m.display_name || (m.email || "").split("@")[0] || m.email,
+    ]),
+  );
+  const busyNames = av.busyMemberIds.map(
+    (id) => memberById.get(id) || "Someone",
+  );
+  return `
+    <div class="ask-result ask-conflict">
+      ${icon("trash", 18)}
+      <div>
+        <strong>${escapeHtml(busyNames.join(", "))} ${busyNames.length === 1 ? "has" : "have"} a conflict.</strong>
+        <div class="muted">${av.conflicts.length} overlapping event${av.conflicts.length === 1 ? "" : "s"} in that window.</div>
+      </div>
+    </div>
+  `;
+}
+
+async function checkAvailability(e) {
+  e.preventDefault();
+  const what = $("#ask-what").value.trim();
+  const whenLocal = $("#ask-when").value;
+  const duration = Number($("#ask-duration").value) || 60;
+  if (!what || !whenLocal) return;
+  // datetime-local has no timezone; treat as local time and convert to ISO.
+  const start = new Date(whenLocal);
+  if (Number.isNaN(start.getTime())) {
+    showError("Invalid date/time.");
+    return;
+  }
+  try {
+    const result = await api(
+      `/api/groups/${currentGroupId}/availability?start=${encodeURIComponent(start.toISOString())}&duration=${duration}`,
+    );
+    groupScheduleState.availability = result;
+    renderGroupSchedule();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
 async function deleteCurrentGroup() {
   const name = groupSettingsState.detail.name;
   const typed = prompt(
@@ -804,6 +1094,8 @@ function applyNavVisibility(counts) {
     "sync-flows": counts.calendars > 0,
     "event-types": counts.calendars > 0,
     bookings: counts.eventTypes > 0 || counts.bookings > 0,
+    // Schedule is a group-only concept. Hidden in Personal mode.
+    "group-schedule": currentGroupId != null,
   };
   $$(".nav-item").forEach((btn) => {
     const t = btn.dataset.tab;
@@ -850,6 +1142,7 @@ function showTab(tab) {
     "event-types": "Event Types",
     bookings: "Bookings",
     "group-settings": "Group settings",
+    "group-schedule": "Schedule",
   };
   const titleEl = $("#page-title");
   if (titleEl) titleEl.textContent = titles[tab] || "Dashboard";
@@ -865,6 +1158,7 @@ function showTab(tab) {
   if (tab === "event-types") loadEventTypes();
   if (tab === "bookings") loadBookings();
   if (tab === "group-settings") loadGroupSettings();
+  if (tab === "group-schedule") loadGroupSchedule();
 }
 
 // ─── Overview / Command Center ───

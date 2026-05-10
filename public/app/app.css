@@ -497,6 +497,156 @@ body {
   margin-bottom: 16px;
 }
 
+/* Group schedule (merged calendar agenda + ask widget) */
+.schedule-ask .ask-form {
+  margin-top: 12px;
+}
+
+.ask-fields {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.ask-fields .field-inline {
+  flex: 1;
+  min-width: 160px;
+}
+
+.ask-result {
+  margin-top: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border-left: 3px solid var(--stone);
+}
+
+.ask-result.ask-ok {
+  background: rgba(56, 161, 105, 0.06);
+  border-left-color: var(--success);
+  color: var(--success);
+}
+
+.ask-result.ask-conflict {
+  background: rgba(229, 62, 62, 0.06);
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+
+.ask-result strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.ask-result .muted {
+  color: var(--stone);
+}
+
+.member-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--stone);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.day-bucket {
+  margin-bottom: 18px;
+}
+
+.day-bucket:last-child {
+  margin-bottom: 0;
+}
+
+.day-header {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--stone);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.day-events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule-event {
+  display: grid;
+  grid-template-columns: 110px 4px 1fr;
+  gap: 12px;
+  align-items: stretch;
+  padding: 10px 4px;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+
+.schedule-event:hover {
+  background: rgba(15, 76, 129, 0.03);
+}
+
+.event-time {
+  font-size: 0.85rem;
+  color: var(--stone);
+  font-variant-numeric: tabular-nums;
+  padding-top: 1px;
+}
+
+.event-bar {
+  background: var(--member-color, var(--bridge-blue));
+  border-radius: 2px;
+  width: 4px;
+}
+
+.event-body {
+  min-width: 0;
+}
+
+.event-title {
+  font-weight: 600;
+  color: var(--charcoal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-title.muted {
+  color: var(--stone);
+  font-weight: 500;
+  font-style: italic;
+}
+
+.event-meta {
+  font-size: 0.8rem;
+  color: var(--stone);
+  margin-top: 2px;
+}
+
+.event-member {
+  color: var(--member-color, var(--stone));
+  font-weight: 600;
+}
+
 .mobile-menu-btn {
   display: none;
   background: none;
