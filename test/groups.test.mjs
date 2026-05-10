@@ -580,3 +580,217 @@ test("merged events: free_busy strips titles, full keeps them", async () => {
   assert.equal(free.free, true);
   assert.equal(free.conflicts.length, 0);
 });
+
+test("group cross-tenant push: applies prefix and namespaces markers", async () => {
+  const { migrate } = await import("../db/migrate.mjs");
+  await migrate({ verbose: false });
+  const { getDb } = await import("../db/client.mjs");
+  const { encrypt } = await import("../lib/crypto.mjs");
+  const { runGroupPushes } = await import("../lib/sync-engine.mjs");
+  const db = getDb();
+
+  // Two users, two tenants, two calendars (Alice's source + Bob's target)
+  const aliceId = randomUUID();
+  const bobId = randomUUID();
+  const aliceTenantId = randomUUID();
+  const bobTenantId = randomUUID();
+  const aliceCalId = randomUUID();
+  const bobCalId = randomUUID();
+  const aliceOauth = randomUUID();
+  const bobOauth = randomUUID();
+  const groupId = randomUUID();
+  const now = Date.now();
+
+  await db.execute({
+    sql: "INSERT INTO users (id, email, display_name, created_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
+    args: [
+      aliceId,
+      `a-${now}@x.com`,
+      "Alex",
+      now,
+      bobId,
+      `b-${now}@x.com`,
+      "Jordan",
+      now,
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO tenants (id, slug, name, owner_user_id, created_at)
+          VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)`,
+    args: [
+      aliceTenantId,
+      `at-${now}`,
+      "Alex",
+      aliceId,
+      now,
+      bobTenantId,
+      `bt-${now}`,
+      "Jordan",
+      bobId,
+      now,
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO oauth_accounts (id, tenant_id, user_id, provider, provider_account_id, email, refresh_token_enc, scopes, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      aliceOauth,
+      aliceTenantId,
+      aliceId,
+      "google",
+      "alice",
+      "a@x.com",
+      encrypt("rt"),
+      "",
+      now,
+      bobOauth,
+      bobTenantId,
+      bobId,
+      "microsoft",
+      "bob",
+      "b@x.com",
+      encrypt("rt"),
+      "",
+      now,
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO calendars (id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role)
+          VALUES (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      aliceCalId,
+      aliceTenantId,
+      aliceOauth,
+      "google",
+      "alice@cal",
+      "Alex Personal",
+      "owner",
+      bobCalId,
+      bobTenantId,
+      bobOauth,
+      "microsoft",
+      "bob@cal",
+      "Jordan Outlook",
+      "owner",
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO groups (id, name, slug, type, created_by_user_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [groupId, "Andersons", `f-${now}`, "family", aliceId, now, now],
+  });
+  await db.execute({
+    sql: `INSERT INTO group_memberships (id, group_id, user_id, role, status, joined_at, created_at)
+          VALUES (?, ?, ?, 'owner', 'active', ?, ?), (?, ?, ?, 'member', 'active', ?, ?)`,
+    args: [
+      randomUUID(),
+      groupId,
+      aliceId,
+      now,
+      now,
+      randomUUID(),
+      groupId,
+      bobId,
+      now,
+      now,
+    ],
+  });
+  // Alice shares her calendar with the group
+  await db.execute({
+    sql: `INSERT INTO group_calendar_shares (id, group_id, user_id, calendar_id, share_level, created_at)
+          VALUES (?, ?, ?, ?, 'full', ?)`,
+    args: [randomUUID(), groupId, aliceId, aliceCalId, now],
+  });
+  // Bob (Jordan) opts in to push: busy_only with "[Alex] " prefix, target = Jordan's Outlook
+  await db.execute({
+    sql: `INSERT INTO group_receive_settings
+            (id, group_id, receiver_user_id, sharer_user_id, receive_level, push_level,
+             event_prefix, acceptance_mode, target_calendar_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'full', 'busy_only', '[Alex] ', 'auto', ?, ?, ?)`,
+    args: [randomUUID(), groupId, bobId, aliceId, bobCalId, now, now],
+  });
+
+  // Stub providers — Alice's "calendar" returns one event; Bob's stays in
+  // a Map so we can assert the push landed.
+  const aliceSource = [
+    {
+      id: "alex-evt-1",
+      summary: "Client A kickoff",
+      start: { dateTime: "2026-07-01T16:00:00Z" },
+      end: { dateTime: "2026-07-01T17:00:00Z" },
+    },
+  ];
+  const bobTarget = new Map();
+  let nextId = 1;
+  const stubByCal = (calId) => ({
+    provider: calId === aliceCalId ? "google" : "microsoft",
+    capabilities: { canWrite: true, canUpdate: true, canDelete: true },
+    async listCalendars() {
+      return [];
+    },
+    async listEvents() {
+      if (calId === aliceCalId) return aliceSource.map((e) => ({ ...e }));
+      return [...bobTarget.entries()].map(([id, evt]) => ({ id, ...evt }));
+    },
+    async createEvent(_cid, evt) {
+      const id = `bob-${nextId++}`;
+      bobTarget.set(id, evt);
+      return { id };
+    },
+    async updateEvent(_cid, eid, patch) {
+      const prev = bobTarget.get(eid) || {};
+      bobTarget.set(eid, { ...prev, ...patch });
+      return { id: eid };
+    },
+    async deleteEvent(_cid, eid) {
+      bobTarget.delete(eid);
+    },
+  });
+
+  // Run 1: push creates one event with [Alex] prefix and "Busy" body
+  const r1 = await runGroupPushes(groupId, {
+    getProviderClient: async (cal) => stubByCal(cal.id),
+  });
+  assert.equal(r1.totals.created, 1);
+  assert.equal(r1.totals.errors, 0);
+  assert.equal(bobTarget.size, 1);
+  const pushed = [...bobTarget.values()][0];
+  assert.equal(
+    pushed.summary,
+    "[Alex] Busy",
+    "busy_only push uses prefix + Busy",
+  );
+  assert.match(pushed.description, /MiCal Sync/);
+  assert.match(
+    pushed.description,
+    new RegExp(`g-${aliceId}:alex-evt-1`),
+    "marker should be namespaced with sharer id",
+  );
+
+  // Run 2: nothing changed → skip
+  const r2 = await runGroupPushes(groupId, {
+    getProviderClient: async (cal) => stubByCal(cal.id),
+  });
+  assert.equal(r2.totals.created, 0);
+  assert.equal(r2.totals.skipped, 1);
+
+  // Run 3: source event time changes → update (still one target row)
+  aliceSource[0] = {
+    ...aliceSource[0],
+    start: { dateTime: "2026-07-01T18:00:00Z" },
+    end: { dateTime: "2026-07-01T19:00:00Z" },
+  };
+  const r3 = await runGroupPushes(groupId, {
+    getProviderClient: async (cal) => stubByCal(cal.id),
+  });
+  assert.equal(r3.totals.updated, 1);
+  assert.equal(bobTarget.size, 1);
+
+  // Run 4: source disappears → delete
+  aliceSource.length = 0;
+  const r4 = await runGroupPushes(groupId, {
+    getProviderClient: async (cal) => stubByCal(cal.id),
+  });
+  assert.equal(r4.totals.deleted, 1);
+  assert.equal(bobTarget.size, 0);
+});

@@ -613,6 +613,22 @@ function renderReceiveRow(member, settings) {
   const recv = settings?.receive_level || "full";
   const push = settings?.push_level || "none";
   const prefix = settings?.event_prefix || "";
+  const targetCalId = settings?.target_calendar_id || "";
+
+  // Calendars the user owns and could land pushed events into. ICS feeds
+  // are excluded — they're read-only.
+  const writableCalOptions = (calendars || [])
+    .filter((c) => c.provider !== "ics")
+    .map(
+      (c) =>
+        `<option value="${escapeHtml(c.id)}" ${c.id === targetCalId ? "selected" : ""}>${escapeHtml(c.label)}</option>`,
+    )
+    .join("");
+
+  // When push is on but no target calendar is set, surface a soft warning
+  // so the user knows their setting isn't actually pushing yet.
+  const needsTarget = push !== "none" && !targetCalId;
+
   return `
     <div class="receive-row" data-sharer-id="${escapeHtml(member.user_id)}">
       <div class="receive-header">
@@ -640,6 +656,13 @@ function renderReceiveRow(member, settings) {
           push !== "none"
             ? `
           <label class="field-inline">
+            <span>Where they land</span>
+            <select onchange="updateReceiveSetting('${escapeHtml(member.user_id)}', 'target_calendar_id', this.value)">
+              <option value="">Pick a calendar…</option>
+              ${writableCalOptions}
+            </select>
+          </label>
+          <label class="field-inline">
             <span>Title prefix</span>
             <input type="text" value="${escapeHtml(prefix)}" placeholder="[${escapeHtml(display.split(" ")[0] || "Name")}] "
               onblur="updateReceiveSetting('${escapeHtml(member.user_id)}', 'event_prefix', this.value)">
@@ -648,6 +671,7 @@ function renderReceiveRow(member, settings) {
             : ""
         }
       </div>
+      ${needsTarget ? `<p class="muted" style="margin-top:8px;color:var(--warning)">Pick a target calendar to start receiving these events.</p>` : ""}
     </div>
   `;
 }
@@ -727,8 +751,11 @@ async function updateReceiveSetting(sharerId, field, value) {
       method: "PATCH",
       body: JSON.stringify({ [field]: value }),
     });
-    // Re-render only on push_level change since it shows/hides the prefix field.
-    if (field === "push_level") await loadGroupSettings();
+    // push_level toggles whole row of fields; target_calendar_id changes the
+    // "needs target" warning. Both warrant a re-render.
+    if (field === "push_level" || field === "target_calendar_id") {
+      await loadGroupSettings();
+    }
   } catch (err) {
     showError(err.message);
   }

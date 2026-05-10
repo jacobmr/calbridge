@@ -78,6 +78,24 @@ export default async function handler(req, res) {
     }
 
     const body = await readJson(req);
+    // target_calendar_id (optional) must belong to the caller's tenant.
+    // We validate ownership here rather than via FK so a bad id surfaces as
+    // a 400 with a clear message instead of a 500.
+    if (body.target_calendar_id) {
+      const db2 = getDb();
+      const own = await db2.execute({
+        sql: `SELECT 1 FROM calendars c
+                JOIN tenants t ON t.id = c.tenant_id
+               WHERE c.id = ? AND t.owner_user_id = ?
+               LIMIT 1`,
+        args: [body.target_calendar_id, user.id],
+      });
+      if (own.rows.length === 0) {
+        const err = new Error("target calendar must be one you own");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
     if (
       body.receive_level !== undefined &&
       !RECEIVE_LEVELS.includes(body.receive_level)
@@ -112,7 +130,8 @@ export default async function handler(req, res) {
     const db = getDb();
     const now = Date.now();
     const existing = await db.execute({
-      sql: `SELECT id, receive_level, push_level, event_prefix, acceptance_mode
+      sql: `SELECT id, receive_level, push_level, event_prefix, acceptance_mode,
+                   target_calendar_id
               FROM group_receive_settings
              WHERE group_id = ? AND receiver_user_id = ? AND sharer_user_id = ?`,
       args: [groupId, user.id, sharerId],
@@ -128,17 +147,22 @@ export default async function handler(req, res) {
             ? body.event_prefix || null
             : cur.event_prefix,
         acceptance_mode: body.acceptance_mode ?? cur.acceptance_mode,
+        target_calendar_id:
+          body.target_calendar_id !== undefined
+            ? body.target_calendar_id || null
+            : cur.target_calendar_id,
       };
       await db.execute({
         sql: `UPDATE group_receive_settings
                  SET receive_level = ?, push_level = ?, event_prefix = ?,
-                     acceptance_mode = ?, updated_at = ?
+                     acceptance_mode = ?, target_calendar_id = ?, updated_at = ?
                WHERE id = ?`,
         args: [
           next.receive_level,
           next.push_level,
           next.event_prefix,
           next.acceptance_mode,
+          next.target_calendar_id,
           now,
           cur.id,
         ],
@@ -164,13 +188,14 @@ export default async function handler(req, res) {
       event_prefix:
         body.event_prefix !== undefined ? body.event_prefix || null : null,
       acceptance_mode: body.acceptance_mode ?? "auto",
+      target_calendar_id: body.target_calendar_id || null,
     };
     await db.execute({
       sql: `INSERT INTO group_receive_settings
               (id, group_id, receiver_user_id, sharer_user_id,
                receive_level, push_level, event_prefix, acceptance_mode,
-               created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               target_calendar_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         groupId,
@@ -180,6 +205,7 @@ export default async function handler(req, res) {
         fresh.push_level,
         fresh.event_prefix,
         fresh.acceptance_mode,
+        fresh.target_calendar_id,
         now,
         now,
       ],

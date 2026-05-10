@@ -301,9 +301,110 @@ nav {
   line-height: 1.6;
 }
 
+/* Families & Teams */
+.families {
+  background: var(--white);
+}
+
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 32px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.scenario-card {
+  background: var(--cloud);
+  border-radius: 16px;
+  padding: 40px 36px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+
+.scenario-family {
+  border-top: 4px solid var(--bridge-blue);
+}
+
+.scenario-team {
+  border-top: 4px solid var(--flow-teal);
+}
+
+.scenario-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--stone);
+  margin-bottom: 12px;
+}
+
+.scenario-card h3 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 16px;
+  color: var(--charcoal);
+}
+
+.scenario-lead {
+  color: var(--stone);
+  font-size: 1rem;
+  line-height: 1.55;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.scenario-card p {
+  color: var(--charcoal);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  margin-bottom: 20px;
+}
+
+.scenario-bullets {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.scenario-bullets li {
+  color: var(--charcoal);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  padding: 6px 0 6px 24px;
+  position: relative;
+}
+
+.scenario-bullets li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--flow-teal);
+}
+
+.scenario-family .scenario-bullets li::before {
+  background: var(--bridge-blue);
+}
+
+.scenario-footer {
+  text-align: center;
+  margin-top: 32px;
+  color: var(--stone);
+  font-size: 0.95rem;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* How it works */
 .how-it-works {
-  background: var(--white);
+  background: var(--cloud);
 }
 
 .steps {

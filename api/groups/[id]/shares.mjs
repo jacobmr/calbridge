@@ -42,7 +42,8 @@ async function listMyShares(req, res, groupId) {
     }),
     db.execute({
       sql: `SELECT id, sharer_user_id, receive_level, push_level,
-                   event_prefix, acceptance_mode, updated_at
+                   event_prefix, acceptance_mode, target_calendar_id,
+                   updated_at
               FROM group_receive_settings
              WHERE group_id = ? AND receiver_user_id = ?`,
       args: [groupId, user.id],
@@ -68,6 +69,7 @@ async function listMyShares(req, res, groupId) {
         push_level: row.push_level,
         event_prefix: row.event_prefix,
         acceptance_mode: row.acceptance_mode,
+        target_calendar_id: row.target_calendar_id,
         updated_at: Number(row.updated_at),
       })),
     }),
