@@ -507,6 +507,208 @@ nav {
   font-style: italic;
 }
 
+/* Pricing */
+.pricing {
+  background: var(--cloud);
+}
+
+.pricing-beta-pill {
+  display: inline-block;
+  margin-left: 8px;
+  background: rgba(0, 194, 168, 0.12);
+  color: var(--bridge-blue);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.price-card {
+  position: relative;
+  background: var(--white);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.price-card-featured {
+  border: 2px solid var(--flow-teal);
+  box-shadow: 0 8px 24px rgba(0, 194, 168, 0.12);
+  transform: translateY(-4px);
+}
+
+.price-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--flow-teal);
+  color: var(--white);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.price-tier {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--stone);
+  margin-bottom: 8px;
+}
+
+.price-amount {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--charcoal);
+  letter-spacing: -0.02em;
+}
+
+.price-currency {
+  font-size: 1.4rem;
+  vertical-align: top;
+  margin-right: 2px;
+  color: var(--stone);
+}
+
+.price-period {
+  font-size: 0.85rem;
+  color: var(--stone);
+  margin-top: 6px;
+  min-height: 1.2em;
+}
+
+.price-monthly {
+  font-size: 0.78rem;
+  color: var(--stone);
+  margin-top: 2px;
+  min-height: 1.1em;
+}
+
+.price-features {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 24px;
+  flex: 1;
+}
+
+.price-features li {
+  font-size: 0.9rem;
+  color: var(--charcoal);
+  padding: 8px 0 8px 24px;
+  position: relative;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.price-features li:last-child {
+  border-bottom: none;
+}
+
+.price-features li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  width: 8px;
+  height: 4px;
+  border-left: 2px solid var(--flow-teal);
+  border-bottom: 2px solid var(--flow-teal);
+  transform: rotate(-45deg);
+}
+
+.btn-block {
+  width: 100%;
+  display: block;
+  text-align: center;
+}
+
+.pricing-footer {
+  text-align: center;
+  margin: 32px auto 0;
+  color: var(--stone);
+  font-size: 0.9rem;
+  max-width: 640px;
+  line-height: 1.6;
+}
+
+/* Mobile: comparison table → stacked cards. The 7-column matrix is
+   unreadable on phones; transpose into one block per competitor with
+   our row marked as the win. */
+@media (max-width: 720px) {
+  .comparison-table {
+    display: block;
+  }
+  .comparison-table thead {
+    display: none;
+  }
+  .comparison-table tbody,
+  .comparison-table tr {
+    display: block;
+  }
+  .comparison-table tbody tr {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 12px 0;
+  }
+  .comparison-table tbody th[scope="row"] {
+    display: block;
+    padding: 8px 16px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--charcoal);
+    background: var(--cloud);
+    min-width: 0;
+    text-align: left;
+  }
+  .comparison-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 16px;
+    border: none;
+    text-align: right;
+    font-size: 0.85rem;
+  }
+  .comparison-table tbody td::before {
+    content: attr(data-col);
+    font-weight: 600;
+    color: var(--stone);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.75rem;
+  }
+  .comparison-table tbody td.us {
+    background: rgba(0, 194, 168, 0.06);
+    border-radius: 6px;
+    margin: 4px 8px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+/* Featured card lift only makes sense on multi-column desktop. */
+@media (max-width: 540px) {
+  .price-card-featured {
+    transform: none;
+  }
+}
+
 /* How it works */
 .how-it-works {
   background: var(--cloud);

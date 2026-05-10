@@ -1407,7 +1407,9 @@ function showTab(tab) {
   const page = $(`#tab-${tab}`);
   if (page) page.style.display = "block";
 
-  // Update page title
+  // Update page title. Group-scoped tabs prefix with the group name so the
+  // top bar always tells you where you are — useful on mobile where the
+  // sidebar is hidden, and after switching groups via the dropdown.
   const titles = {
     overview: "Dashboard",
     calendars: "Calendars",
@@ -1418,7 +1420,17 @@ function showTab(tab) {
     "group-schedule": "Schedule",
   };
   const titleEl = $("#page-title");
-  if (titleEl) titleEl.textContent = titles[tab] || "Dashboard";
+  if (titleEl) {
+    let title = titles[tab] || "Dashboard";
+    if (
+      currentGroupId != null &&
+      (tab === "group-schedule" || tab === "group-settings")
+    ) {
+      const g = (groups || []).find((g) => g.id === currentGroupId);
+      if (g) title = `${g.name} · ${title}`;
+    }
+    titleEl.textContent = title;
+  }
 
   // Close mobile sidebar
   $(".sidebar").classList.remove("open");
@@ -1727,7 +1739,7 @@ function renderWhatsNextCard(c) {
     cards.push({
       illust: "home",
       title: "Share with your family or team",
-      body: 'See everyone\'s schedule in one place — across providers. Answer "are we free Saturday?" with confidence.',
+      body: 'See everyone\'s schedule in one place — across providers. Unlocks the merged Schedule tab and "Ask the family" availability checks.',
       cta: "Create a group",
       onclick: "openCreateGroupDialog()",
     });

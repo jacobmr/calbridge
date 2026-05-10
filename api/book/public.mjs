@@ -1,20 +1,20 @@
-import { randomUUID, randomBytes } from 'node:crypto';
-import { getDb } from '../../db/client.mjs';
+import { randomUUID, randomBytes } from "node:crypto";
+import { getDb } from "../../db/client.mjs";
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', (chunk) => {
+    let data = "";
+    req.on("data", (chunk) => {
       data += chunk;
     });
-    req.on('end', () => {
+    req.on("end", () => {
       try {
         resolve(data ? JSON.parse(data) : {});
       } catch (err) {
         reject(err);
       }
     });
-    req.on('error', reject);
+    req.on("error", reject);
   });
 }
 
@@ -29,7 +29,7 @@ function isWithinWorkHours(date, workHoursJson) {
     if (!wh.start || !wh.end) return true;
     const hm = (d) => d.getHours() * 60 + d.getMinutes();
     const parse = (s) => {
-      const [h, m] = s.split(':').map(Number);
+      const [h, m] = s.split(":").map(Number);
       return h * 60 + m;
     };
     const t = hm(date);
@@ -45,31 +45,31 @@ async function getPublicEventType(req, res) {
 
   if (!tenantSlug || !eventSlug) {
     res.statusCode = 400;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'missing tenant or event' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "missing tenant or event" }));
     return;
   }
 
   const db = getDb();
   const tenantRow = await db.execute({
-    sql: 'SELECT id FROM tenants WHERE slug = ? AND enabled = 1',
+    sql: "SELECT id FROM tenants WHERE slug = ? AND enabled = 1",
     args: [tenantSlug],
   });
   if (!tenantRow.rows[0]) {
     res.statusCode = 404;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'not found' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "not found" }));
     return;
   }
 
   const evRow = await db.execute({
-    sql: 'SELECT * FROM event_types WHERE tenant_id = ? AND slug = ? AND enabled = 1',
+    sql: "SELECT * FROM event_types WHERE tenant_id = ? AND slug = ? AND enabled = 1",
     args: [tenantRow.rows[0].id, eventSlug],
   });
   if (!evRow.rows[0]) {
     res.statusCode = 404;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'not found' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "not found" }));
     return;
   }
 
@@ -86,61 +86,67 @@ async function getPublicEventType(req, res) {
     require_email: ev.require_email,
   };
 
-  res.setHeader('content-type', 'application/json');
+  res.setHeader("content-type", "application/json");
   res.end(JSON.stringify(out));
 }
 
 async function createPublicBooking(req, res) {
   const body = await readBody(req);
   const {
-    tenant_slug, event_slug, start_ms,
-    attendee_email, attendee_name, subject, notes, pass,
+    tenant_slug,
+    event_slug,
+    start_ms,
+    attendee_email,
+    attendee_name,
+    subject,
+    notes,
+    pass,
   } = body;
 
   if (!tenant_slug || !event_slug || start_ms == null) {
     res.statusCode = 400;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'missing required fields' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "missing required fields" }));
     return;
   }
 
   const db = getDb();
   const tenantRow = await db.execute({
-    sql: 'SELECT id FROM tenants WHERE slug = ? AND enabled = 1',
+    sql: "SELECT id FROM tenants WHERE slug = ? AND enabled = 1",
     args: [tenant_slug],
   });
   if (!tenantRow.rows[0]) {
     res.statusCode = 404;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'not found' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "not found" }));
     return;
   }
   const tenantId = tenantRow.rows[0].id;
 
   const evRow = await db.execute({
-    sql: 'SELECT * FROM event_types WHERE tenant_id = ? AND slug = ? AND enabled = 1',
+    sql: "SELECT * FROM event_types WHERE tenant_id = ? AND slug = ? AND enabled = 1",
     args: [tenantId, event_slug],
   });
   if (!evRow.rows[0]) {
     res.statusCode = 404;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'not found' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "not found" }));
     return;
   }
   const ev = evRow.rows[0];
 
   if (ev.require_email && !attendee_email) {
     res.statusCode = 400;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'attendee_email required' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "attendee_email required" }));
     return;
   }
 
   if (ev.pass_required) {
     if (!pass || pass !== ev.pass_hash) {
       res.statusCode = 403;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ error: 'invalid pass' }));
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ error: "invalid pass" }));
       return;
     }
   }
@@ -152,8 +158,8 @@ async function createPublicBooking(req, res) {
   const earliestStart = now + Number(ev.lead_min || 0) * 60000;
   if (Number(start_ms) < earliestStart) {
     res.statusCode = 400;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'booking too soon' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "booking too soon" }));
     return;
   }
 
@@ -161,8 +167,8 @@ async function createPublicBooking(req, res) {
   const latestStart = now + Number(ev.horizon_days || 25) * 86400000;
   if (Number(start_ms) > latestStart) {
     res.statusCode = 400;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'booking too far in the future' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "booking too far in the future" }));
     return;
   }
 
@@ -170,21 +176,21 @@ async function createPublicBooking(req, res) {
   const mask = Number(ev.weekdays_mask || 31);
   if ((mask & dayBit(startDate)) === 0) {
     res.statusCode = 400;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'day not available' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "day not available" }));
     return;
   }
 
   // work_hours check
   if (!isWithinWorkHours(startDate, ev.work_hours_json)) {
     res.statusCode = 400;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'time not within work hours' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "time not within work hours" }));
     return;
   }
 
   const id = randomUUID();
-  const cancelToken = randomBytes(16).toString('base64url');
+  const cancelToken = randomBytes(16).toString("base64url");
   const durationMin = Number(ev.duration_min);
   const endMs = Number(start_ms) + durationMin * 60000;
 
@@ -195,33 +201,56 @@ async function createPublicBooking(req, res) {
       start_ms, end_ms, status, created_at, cancelled_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
-      id, tenantId, ev.id, cancelToken, null,
-      attendee_email || null, attendee_name || null, subject || null, notes || null,
-      Number(start_ms), endMs, 'pending', now, null,
+      id,
+      tenantId,
+      ev.id,
+      cancelToken,
+      null,
+      attendee_email || null,
+      attendee_name || null,
+      subject || null,
+      notes || null,
+      Number(start_ms),
+      endMs,
+      "pending",
+      now,
+      null,
     ],
   });
 
+  // Compose the cancel URL server-side. The attendee never sees the raw
+  // token — only this opaque link, which the cancel page reads from
+  // location.search and POSTs to /api/book/cancel.
+  const base = process.env.APP_BASE_URL || "https://www.mical.net";
+  const cancelUrl = `${base}/book/cancel/?token=${encodeURIComponent(cancelToken)}`;
+
   res.statusCode = 201;
-  res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify({ booking_id: id, cancel_token: cancelToken, status: 'pending' }));
+  res.setHeader("content-type", "application/json");
+  res.end(
+    JSON.stringify({
+      booking_id: id,
+      cancel_url: cancelUrl,
+      status: "pending",
+    }),
+  );
 }
 
 export default async function handler(req, res) {
   try {
-    if (req.method === 'GET') {
+    if (req.method === "GET") {
       await getPublicEventType(req, res);
       return;
     }
-    if (req.method === 'POST') {
+    if (req.method === "POST") {
       await createPublicBooking(req, res);
       return;
     }
     res.statusCode = 405;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'method not allowed' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "method not allowed" }));
   } catch (err) {
     res.statusCode = err.statusCode || 500;
-    res.setHeader('content-type', 'application/json');
+    res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: err.message }));
   }
 }

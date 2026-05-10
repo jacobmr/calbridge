@@ -88,6 +88,20 @@
         height: 1px;
         background: rgba(0, 0, 0, 0.08);
       }
+      .login-legal {
+        margin-top: 20px !important;
+        margin-bottom: 0 !important;
+        font-size: 0.78rem !important;
+        line-height: 1.5;
+        color: var(--stone);
+      }
+      .login-legal a {
+        color: var(--bridge-blue);
+        text-decoration: none;
+      }
+      .login-legal a:hover {
+        text-decoration: underline;
+      }
       .back-link {
         display: inline-block;
         margin-top: 24px;
@@ -112,6 +126,7 @@
       (function () {
         const params = new URLSearchParams(location.search);
         const invite = params.get("invite");
+        const fromHero = params.get("from") === "hero";
         const rt = invite
           ? "/app/?invite=" + encodeURIComponent(invite)
           : "/app/";
@@ -124,6 +139,24 @@
         document.addEventListener("DOMContentLoaded", () => {
           provider("oauth-google");
           provider("oauth-microsoft");
+
+          // Swap heading to first-time copy when arriving from a landing
+          // CTA. Returning users (deep-linked /login or 401-redirected)
+          // get the "Welcome back" default. Invite recipients get the
+          // group-aware copy.
+          const heading = document.getElementById("login-heading");
+          const sub = document.getElementById("login-sub");
+          if (heading && sub) {
+            if (invite) {
+              heading.textContent = "Accept your invitation";
+              sub.textContent =
+                "Sign in to join the group. We never read your event content.";
+            } else if (fromHero) {
+              heading.textContent = "Connect your first calendar";
+              sub.textContent =
+                "Choose a provider to get started. We never read your event content.";
+            }
+          }
         });
         fetch("/api/auth/me", { credentials: "same-origin" })
           .then((r) => {
@@ -137,8 +170,8 @@
     <div class="login-page">
       <div class="login-card">
         <a href="/" class="logo">Mi<span>Cal</span></a>
-        <h1>Welcome back</h1>
-        <p>Sign in to manage your calendars and bookings.</p>
+        <h1 id="login-heading">Welcome back</h1>
+        <p id="login-sub">Sign in to manage your calendars and bookings.</p>
 
         <a
           id="oauth-google"
@@ -181,6 +214,14 @@
           </svg>
           Sign in with Microsoft
         </a>
+
+        <p class="login-legal">
+          By continuing, you agree to our
+          <a href="/terms">Terms</a> and
+          <a href="/privacy">Privacy Policy</a>.<br />
+          MiCal never reads or stores your event content beyond what's needed to
+          sync.
+        </p>
 
         <a href="/" class="back-link">← Back to home</a>
       </div>

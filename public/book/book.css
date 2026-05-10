@@ -1,14 +1,14 @@
 :root {
-  --bridge-blue: #0F4C81;
-  --flow-teal: #00C2A8;
-  --cloud: #F5F7FA;
-  --charcoal: #1A202C;
+  --bridge-blue: #0f4c81;
+  --flow-teal: #00c2a8;
+  --cloud: #f5f7fa;
+  --charcoal: #1a202c;
   --stone: #718096;
-  --white: #FFFFFF;
+  --white: #ffffff;
   --teal-dark: #009e88;
   --blue-dark: #0a3a63;
-  --danger: #E53E3E;
-  --success: #38A169;
+  --danger: #e53e3e;
+  --success: #38a169;
 }
 
 * {
@@ -18,7 +18,9 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
   color: var(--charcoal);
   background: var(--cloud);
   line-height: 1.6;
@@ -382,7 +384,9 @@ body {
   font-family: inherit;
   color: var(--charcoal);
   background: var(--white);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
   width: 100%;
 }
 
@@ -463,16 +467,28 @@ body {
 .confirm-icon {
   width: 64px;
   height: 64px;
-  background: var(--flow-teal);
-  color: var(--white);
-  border-radius: 50%;
+  color: var(--success);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
-  font-weight: 700;
   margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(0, 194, 168, 0.3);
+}
+
+.confirm-cancel-row {
+  margin-top: 20px;
+  font-size: 0.88rem;
+  color: var(--stone);
+}
+
+.confirm-cancel-row a {
+  color: var(--bridge-blue);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(15, 76, 129, 0.3);
+}
+
+.confirm-cancel-row a:hover {
+  border-bottom-color: var(--bridge-blue);
 }
 
 .confirm-title {
@@ -525,7 +541,7 @@ body {
 }
 
 .confirm-mono {
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+  font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
   font-size: 0.85rem;
 }
 

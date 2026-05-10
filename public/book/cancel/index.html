@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cancel booking — MiCal</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/book/book.css" />
+    <style>
+      .cancel-card {
+        background: var(--white);
+        border-radius: 14px;
+        padding: 40px 32px;
+        max-width: 480px;
+        margin: 60px auto;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        text-align: center;
+      }
+      .cancel-card h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 12px;
+      }
+      .cancel-card p {
+        color: var(--stone);
+        line-height: 1.55;
+        margin-bottom: 20px;
+      }
+      .cancel-detail {
+        background: var(--cloud);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 20px 0;
+        text-align: left;
+        font-size: 0.95rem;
+      }
+      .cancel-detail .label {
+        font-size: 0.78rem;
+        color: var(--stone);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 600;
+      }
+      .cancel-detail .value {
+        color: var(--charcoal);
+        margin-top: 2px;
+      }
+      .cancel-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 24px;
+        flex-wrap: wrap;
+      }
+      .state-error {
+        color: var(--danger);
+      }
+      .state-success {
+        color: var(--success);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="cancel-card" id="card">
+      <p>Loading…</p>
+    </div>
+
+    <!-- Templates: rendered with textContent fills, never string-concatenated
+         with untrusted data. -->
+    <template id="tpl-error">
+      <h1 class="state-error" data-fill="title">Error</h1>
+      <p data-fill="msg"></p>
+    </template>
+    <template id="tpl-already">
+      <h1>Already cancelled</h1>
+      <p>This booking was cancelled previously. Nothing to do.</p>
+      <a class="btn btn-secondary" href="/">Back to MiCal</a>
+    </template>
+    <template id="tpl-confirm">
+      <h1>Cancel this booking?</h1>
+      <p>If you cancel, the host will be notified.</p>
+      <div class="cancel-detail">
+        <div class="label">Event</div>
+        <div class="value" data-fill="event"></div>
+      </div>
+      <div class="cancel-detail">
+        <div class="label">When</div>
+        <div class="value" data-fill="when"></div>
+      </div>
+      <div class="cancel-detail">
+        <div class="label">Host</div>
+        <div class="value" data-fill="host"></div>
+      </div>
+      <div class="cancel-actions">
+        <a class="btn btn-secondary" href="/">Keep booking</a>
+        <button class="btn btn-danger" id="confirm-cancel">Yes, cancel</button>
+      </div>
+    </template>
+    <template id="tpl-success">
+      <h1 class="state-success">Booking cancelled</h1>
+      <p>Done. The host has been notified.</p>
+      <a class="btn btn-secondary" href="/">Back to MiCal</a>
+    </template>
+
+    <script>
+      const card = document.getElementById("card");
+      const params = new URLSearchParams(location.search);
+      const token = params.get("token");
+
+      function render(templateId, fills) {
+        const tpl = document.getElementById(templateId);
+        const node = tpl.content.cloneNode(true);
+        for (const [key, value] of Object.entries(fills || {})) {
+          const target = node.querySelector(`[data-fill="${key}"]`);
+          if (target) target.textContent = value;
+        }
+        card.replaceChildren(node);
+      }
+
+      function fmtWhen(startMs, endMs) {
+        const s = new Date(startMs);
+        const e = new Date(endMs);
+        const date = s.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+        const start = s.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        const end = e.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        return `${date} · ${start} – ${end}`;
+      }
+
+      async function load() {
+        if (!token) {
+          render("tpl-error", {
+            title: "Missing cancel link",
+            msg: "This page needs a token. Open the cancel link from your booking confirmation.",
+          });
+          return;
+        }
+        try {
+          const res = await fetch(
+            "/api/book/cancel?token=" + encodeURIComponent(token),
+          );
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            render("tpl-error", {
+              title: "Couldn't find that booking",
+              msg:
+                err.error || "The link may have expired or already been used.",
+            });
+            return;
+          }
+          const b = await res.json();
+          if (b.status === "cancelled") {
+            render("tpl-already", {});
+            return;
+          }
+          render("tpl-confirm", {
+            event: b.subject || b.event_type_name || "Booking",
+            when: fmtWhen(b.start_ms, b.end_ms),
+            host: b.tenant_name || "Host",
+          });
+          document
+            .getElementById("confirm-cancel")
+            .addEventListener("click", doCancel);
+        } catch (e) {
+          render("tpl-error", {
+            title: "Something went wrong",
+            msg: e.message || "Try again in a moment.",
+          });
+        }
+      }
+
+      async function doCancel() {
+        const btn = document.getElementById("confirm-cancel");
+        btn.disabled = true;
+        btn.textContent = "Cancelling…";
+        try {
+          const res = await fetch("/api/book/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || "Couldn't cancel");
+          }
+          render("tpl-success", {});
+        } catch (e) {
+          btn.disabled = false;
+          btn.textContent = "Yes, cancel";
+          alert(e.message);
+        }
+      }
+
+      load();
+    </script>
+  </body>
+</html>

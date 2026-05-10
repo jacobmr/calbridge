@@ -72,9 +72,10 @@
           <a href="#features">Features</a>
           <a href="#families">Families &amp; Teams</a>
           <a href="#compare">Compare</a>
+          <a href="#pricing">Pricing</a>
           <a href="#how-it-works">How it Works</a>
           <a href="/privacy">Privacy</a>
-          <a href="/login" class="btn btn-primary">Get Started</a>
+          <a href="/login?from=hero" class="btn btn-primary">Get Started</a>
         </div>
       </div>
     </nav>
@@ -89,7 +90,7 @@
           double-book yourself again.
         </p>
         <div class="hero-ctas">
-          <a href="/login" class="btn btn-primary btn-large"
+          <a href="/login?from=hero" class="btn btn-primary btn-large"
             >Connect Your First Calendar</a
           >
           <a href="#how-it-works" class="btn btn-secondary btn-large"
@@ -414,8 +415,8 @@
       <div class="container">
         <h2 class="section-title">How MiCal compares</h2>
         <p class="section-subtitle">
-          A few good products live near MiCal. Here's the honest matrix —
-          we don't do everything, and we don't pretend to.
+          A few good products live near MiCal. Here's the honest matrix — we
+          don't do everything, and we don't pretend to.
         </p>
 
         <div class="comparison-wrap">
@@ -434,90 +435,198 @@
             <tbody>
               <tr>
                 <th scope="row">Sync events between Google + Outlook + ICS</th>
-                <td class="us yes">Yes</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="yes">Yes</td>
-                <td class="no">—</td>
-                <td class="partial">Google only</td>
+                <td class="us yes" data-col="MiCal">Yes</td>
+                <td class="no" data-col="Calendly">—</td>
+                <td class="no" data-col="TidyCal">—</td>
+                <td class="yes" data-col="OneCal">Yes</td>
+                <td class="no" data-col="Cal.com">—</td>
+                <td class="partial" data-col="Reclaim">Google only</td>
               </tr>
               <tr>
                 <th scope="row">Public booking pages</th>
-                <td class="us yes">Yes</td>
-                <td class="yes">Yes</td>
-                <td class="yes">Yes</td>
-                <td class="no">—</td>
-                <td class="yes">Yes</td>
-                <td class="yes">Yes</td>
+                <td class="us yes" data-col="MiCal">Yes</td>
+                <td class="yes" data-col="Calendly">Yes</td>
+                <td class="yes" data-col="TidyCal">Yes</td>
+                <td class="no" data-col="OneCal">—</td>
+                <td class="yes" data-col="Cal.com">Yes</td>
+                <td class="yes" data-col="Reclaim">Yes</td>
               </tr>
               <tr>
-                <th scope="row">Family / team merged calendar across providers</th>
-                <td class="us yes">Yes</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="partial">Limited</td>
-                <td class="no">—</td>
+                <th scope="row">
+                  Family / team merged calendar across providers
+                </th>
+                <td class="us yes" data-col="MiCal">Yes</td>
+                <td class="no" data-col="Calendly">—</td>
+                <td class="no" data-col="TidyCal">—</td>
+                <td class="no" data-col="OneCal">—</td>
+                <td class="partial" data-col="Cal.com">Limited</td>
+                <td class="no" data-col="Reclaim">—</td>
               </tr>
               <tr>
-                <th scope="row">Per-person sharing levels (full vs free/busy)</th>
-                <td class="us yes">Yes</td>
-                <td class="partial">Limited</td>
-                <td class="partial">Limited</td>
-                <td class="no">—</td>
-                <td class="partial">Limited</td>
-                <td class="partial">Limited</td>
+                <th scope="row">
+                  Per-person sharing levels (full vs free/busy)
+                </th>
+                <td class="us yes" data-col="MiCal">Yes</td>
+                <td class="partial" data-col="Calendly">Limited</td>
+                <td class="partial" data-col="TidyCal">Limited</td>
+                <td class="no" data-col="OneCal">—</td>
+                <td class="partial" data-col="Cal.com">Limited</td>
+                <td class="partial" data-col="Reclaim">Limited</td>
               </tr>
               <tr>
                 <th scope="row">"[Name] " prefixes on pushed events</th>
-                <td class="us yes">Yes</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="partial">Limited</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
+                <td class="us yes" data-col="MiCal">Yes</td>
+                <td class="no" data-col="Calendly">—</td>
+                <td class="no" data-col="TidyCal">—</td>
+                <td class="partial" data-col="OneCal">Limited</td>
+                <td class="no" data-col="Cal.com">—</td>
+                <td class="no" data-col="Reclaim">—</td>
               </tr>
               <tr>
-                <th scope="row">Smart 25 / 50-minute defaults with built-in buffers</th>
-                <td class="us yes">Yes</td>
-                <td class="partial">Manual</td>
-                <td class="partial">Manual</td>
-                <td class="no">—</td>
-                <td class="partial">Manual</td>
-                <td class="yes">Yes</td>
+                <th scope="row">
+                  Smart 25 / 50-minute defaults with built-in buffers
+                </th>
+                <td class="us yes" data-col="MiCal">Yes</td>
+                <td class="partial" data-col="Calendly">Manual</td>
+                <td class="partial" data-col="TidyCal">Manual</td>
+                <td class="no" data-col="OneCal">—</td>
+                <td class="partial" data-col="Cal.com">Manual</td>
+                <td class="yes" data-col="Reclaim">Yes</td>
               </tr>
               <tr>
                 <th scope="row">AI auto-scheduling for tasks &amp; habits</th>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="yes">Yes</td>
+                <td class="no" data-col="MiCal">—</td>
+                <td class="no" data-col="Calendly">—</td>
+                <td class="no" data-col="TidyCal">—</td>
+                <td class="no" data-col="OneCal">—</td>
+                <td class="no" data-col="Cal.com">—</td>
+                <td class="yes" data-col="Reclaim">Yes</td>
               </tr>
               <tr>
                 <th scope="row">Open source / self-hostable</th>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="no">—</td>
-                <td class="yes">Yes</td>
-                <td class="no">—</td>
+                <td class="no" data-col="MiCal">—</td>
+                <td class="no" data-col="Calendly">—</td>
+                <td class="no" data-col="TidyCal">—</td>
+                <td class="no" data-col="OneCal">—</td>
+                <td class="yes" data-col="Cal.com">Yes</td>
+                <td class="no" data-col="Reclaim">—</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <p class="comparison-footer">
-          Calendly and TidyCal own scheduling links. OneCal owns calendar
-          sync. Cal.com is open-source booking. Reclaim is AI auto-scheduling.
-          <strong>MiCal is the only one that does cross-provider sync,
-          booking pages, and family/team schedules together</strong> — so
-          the calendar your spouse, your client, and the soccer league all
+          Calendly and TidyCal own scheduling links. OneCal owns calendar sync.
+          Cal.com is open-source booking. Reclaim is AI auto-scheduling.
+          <strong
+            >MiCal is the only one that does cross-provider sync, booking pages,
+            and family/team schedules together</strong
+          >
+          — so the calendar your spouse, your client, and the soccer league all
           use can finally live in one place.
-          <span class="comparison-aside">Adjacent tools we admire but don't
-          directly overlap with: Motion, Clockwise, Cron / Notion Calendar,
-          Fantastical, Vimcal, and Cozi (family-only).</span>
+          <span class="comparison-aside"
+            >Adjacent tools we admire but don't directly overlap with: Motion,
+            Clockwise, Cron / Notion Calendar, Fantastical, Vimcal, and Cozi
+            (family-only).</span
+          >
+        </p>
+      </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="section pricing" id="pricing">
+      <div class="container">
+        <h2 class="section-title">Honest pricing</h2>
+        <p class="section-subtitle">
+          Free for couples and small families. A few dollars a month for
+          unlimited everything. No surprises.
+          <span class="pricing-beta-pill"
+            >Free during beta — billing starts later</span
+          >
+        </p>
+
+        <div class="pricing-grid">
+          <article class="price-card">
+            <div class="price-tier">Free</div>
+            <div class="price-amount">
+              <span class="price-currency">$</span>0
+            </div>
+            <div class="price-period">forever</div>
+            <ul class="price-features">
+              <li>2 connected calendars</li>
+              <li>2 sync flows</li>
+              <li>1 booking page</li>
+              <li>1 family group, up to 3 members</li>
+              <li>"Sent with MiCal" booking footer</li>
+            </ul>
+            <a class="btn btn-secondary btn-block" href="/login?from=hero"
+              >Get started</a
+            >
+          </article>
+
+          <article class="price-card">
+            <div class="price-tier">Individual</div>
+            <div class="price-amount">
+              <span class="price-currency">$</span>3
+            </div>
+            <div class="price-period">per month, billed annually</div>
+            <div class="price-monthly">or $4 month-to-month</div>
+            <ul class="price-features">
+              <li>Unlimited calendars + sync flows</li>
+              <li>Unlimited booking pages</li>
+              <li>Custom subdomain (jmr.mical.net)</li>
+              <li>No MiCal footer on bookings</li>
+              <li>Priority support</li>
+            </ul>
+            <a class="btn btn-secondary btn-block" href="/login?from=hero"
+              >Start free trial</a
+            >
+          </article>
+
+          <article class="price-card price-card-featured">
+            <div class="price-badge">Best value</div>
+            <div class="price-tier">Family</div>
+            <div class="price-amount">
+              <span class="price-currency">$</span>6
+            </div>
+            <div class="price-period">per month, billed annually</div>
+            <div class="price-monthly">or $8 month-to-month — flat for 5</div>
+            <ul class="price-features">
+              <li>Up to 5 family members</li>
+              <li>Each gets full Individual features</li>
+              <li>Cross-platform merged schedule</li>
+              <li>Cross-tenant push with [Name] prefix</li>
+              <li>"Ask the family" availability check</li>
+            </ul>
+            <a class="btn btn-primary btn-block" href="/login?from=hero"
+              >Start free trial</a
+            >
+          </article>
+
+          <article class="price-card">
+            <div class="price-tier">Team</div>
+            <div class="price-amount">
+              <span class="price-currency">$</span>3
+            </div>
+            <div class="price-period">per seat per month, billed annually</div>
+            <div class="price-monthly">2-seat minimum · $4 month-to-month</div>
+            <ul class="price-features">
+              <li>Per-seat. Scales 2 to 50+</li>
+              <li>Group booking pages</li>
+              <li>Admin role + audit log</li>
+              <li>5× cheaper than Calendly Teams</li>
+              <li>Annual invoicing available</li>
+            </ul>
+            <a class="btn btn-secondary btn-block" href="/login?from=hero"
+              >Start free trial</a
+            >
+          </article>
+        </div>
+
+        <p class="pricing-footer">
+          Annual billing is ~25% cheaper than month-to-month — and lets us spend
+          less on payment processing, more on building. All paid plans include a
+          14-day free trial. Cancel anytime.
         </p>
       </div>
     </section>
@@ -572,7 +681,7 @@
           Join professionals who've eliminated double-bookings and scheduling
           friction for good.
         </p>
-        <a href="/login" class="btn btn-primary btn-large"
+        <a href="/login?from=hero" class="btn btn-primary btn-large"
           >Connect Your First Calendar</a
         >
       </div>
