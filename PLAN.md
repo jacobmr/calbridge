@@ -650,6 +650,25 @@ This is the same sync engine, but the target calendar belongs to a different use
 
 ---
 
+## 10. Backlog (post-launch)
+
+- **Per-user subdomains for booking pages.** Today the public URL is
+  `https://www.mical.net/book/?tenant=jmr&event=25`. Goal: serve the
+  same pages at `https://jmr.mical.net/25` (or a custom domain like
+  `book.example.com/25`). Requires a wildcard DNS record + a Vercel
+  rewrite that maps the host's subdomain to `tenant=` and the first
+  path segment to `event=`. Migration path: keep the query-string
+  form working forever; the subdomain form is a vanity layer.
+- **Email-sent invites.** Today the inviter copies the link by hand.
+  Adding outbound email (Resend/SES) lets us send the link
+  automatically when a non-MiCal user is invited. Reuses the
+  existing token in `group_invites`.
+- **Invite-mode push approval.** `acceptance_mode='invite'` in
+  `group_receive_settings` is parked — we honor `auto` and `block`
+  but skip `invite` until the approval flow exists.
+
+---
+
 ## Appendix: Copy Guidelines
 
 Use **family** or **team** language based on group type. Never generic "group" in user-facing copy.

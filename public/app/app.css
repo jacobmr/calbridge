@@ -1582,6 +1582,103 @@ textarea {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
 }
 
+/* Type picker (Create Group, future tile-style choices) */
+.type-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.type-option {
+  cursor: pointer;
+  margin: 0;
+  display: block;
+}
+
+.type-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.type-card {
+  padding: 14px 16px;
+  border: 1.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.type-card strong {
+  color: var(--charcoal);
+  font-size: 0.95rem;
+}
+
+.type-card .muted {
+  font-size: 0.82rem;
+  color: var(--stone);
+}
+
+.type-option input:checked + .type-card {
+  border-color: var(--flow-teal);
+  background: rgba(0, 194, 168, 0.06);
+}
+
+.type-option:hover .type-card {
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
+.create-group-dialog {
+  max-width: 460px;
+}
+
+.invite-dialog {
+  max-width: 480px;
+}
+
+.invite-link-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.invite-link-row input {
+  flex: 1;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  background: var(--cloud);
+}
+
+.booking-url-cell {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--bridge-blue);
+  text-decoration: none;
+  background: var(--cloud);
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  max-width: 220px;
+  vertical-align: middle;
+}
+
+.booking-url-cell:hover {
+  text-decoration: underline;
+}
+
+.booking-url-dialog {
+  max-width: 540px;
+}
+
 /* Welcome modal — first-run onboarding */
 .welcome-dialog {
   max-width: 520px;

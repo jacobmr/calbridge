@@ -403,24 +403,100 @@ function selectGroup(groupId) {
   }
 }
 
-// Minimal "create group" prompt for now — full onboarding lands in T5.3.
-async function openCreateGroupDialog() {
-  const name = prompt('Name your group (e.g. "The Andersons")');
-  if (!name || !name.trim()) return;
-  const type = confirm("OK = Family · Cancel = Team") ? "family" : "team";
-  try {
-    const created = await api("/api/groups", {
-      method: "POST",
-      body: JSON.stringify({ name: name.trim(), type }),
+// Real modal — replaces the v1 prompt/confirm pair, which was brittle on
+// mobile Safari and confusing ("Cancel = Team" surprised people who hit
+// Cancel meaning "abort").
+function openCreateGroupDialog() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open";
+  overlay.innerHTML = `
+    <div class="modal-dialog create-group-dialog">
+      <div class="modal-header">
+        <h3>Create a group</h3>
+        <button class="modal-close" type="button" aria-label="Close">×</button>
+      </div>
+      <form id="create-group-form" class="modal-body">
+        <div class="form-group">
+          <label for="cg-name">Name</label>
+          <input type="text" id="cg-name" placeholder="e.g. The Andersons, Client A Team" required maxlength="60" autofocus>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <div class="type-picker">
+            <label class="type-option">
+              <input type="radio" name="cg-type" value="family" checked>
+              <div class="type-card">
+                <strong>Family</strong>
+                <span class="muted">Spouse + kids. Default to full sharing.</span>
+              </div>
+            </label>
+            <label class="type-option">
+              <input type="radio" name="cg-type" value="team">
+              <div class="type-card">
+                <strong>Team</strong>
+                <span class="muted">Coworkers or clients. Default to free/busy.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" id="cg-cancel">Cancel</button>
+        <button class="btn btn-primary" type="submit" form="create-group-form" id="cg-submit">Create</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+  };
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  overlay.querySelector("#cg-cancel").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  // Escape closes — small affordance, big quality-of-life
+  const onKey = (e) => {
+    if (e.key === "Escape") {
+      close();
+      document.removeEventListener("keydown", onKey);
+    }
+  };
+  document.addEventListener("keydown", onKey);
+
+  setTimeout(() => overlay.querySelector("#cg-name").focus(), 50);
+
+  overlay
+    .querySelector("#create-group-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = overlay.querySelector("#cg-name").value.trim();
+      const type = overlay.querySelector('input[name="cg-type"]:checked').value;
+      if (!name) return;
+      const submitBtn = overlay.querySelector("#cg-submit");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Creating…";
+      try {
+        const created = await api("/api/groups", {
+          method: "POST",
+          body: JSON.stringify({ name, type }),
+        });
+        groups = [...groups, created];
+        close();
+        document.removeEventListener("keydown", onKey);
+        selectGroup(created.id);
+        showSuccess(
+          `${type === "family" ? "Family" : "Team"} "${created.name}" created.`,
+        );
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Create";
+        showError(err.message);
+      }
     });
-    groups = [...groups, created];
-    selectGroup(created.id);
-    showSuccess(
-      `${type === "family" ? "Family" : "Team"} "${created.name}" created.`,
-    );
-  } catch (err) {
-    showError(err.message);
-  }
 }
 
 // ─── Group settings page ───
@@ -722,19 +798,131 @@ function renderReceiveRow(member, settings) {
 
 // ─── Group settings handlers ───
 
-async function openInviteDialog() {
-  const email = prompt("Email of person to invite");
-  if (!email) return;
-  try {
-    await api(`/api/groups/${currentGroupId}/invite`, {
-      method: "POST",
-      body: JSON.stringify({ email: email.trim() }),
+// Modal-based invite. Replaces the v1 prompt(). When the invitee isn't on
+// MiCal yet, the API returns invite_url (a token-bearing /login link) and
+// we surface it for the inviter to copy and send themselves — no email
+// infrastructure required for v1.
+function openInviteDialog() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open";
+  overlay.innerHTML = `
+    <div class="modal-dialog invite-dialog">
+      <div class="modal-header">
+        <h3>Invite to this group</h3>
+        <button class="modal-close" type="button" aria-label="Close">×</button>
+      </div>
+      <form id="invite-form" class="modal-body">
+        <div class="form-group">
+          <label for="inv-email">Email address</label>
+          <input type="email" id="inv-email" placeholder="partner@example.com" required autofocus>
+          <p class="form-hint">If they already have MiCal, they get a notification on next sign-in. Otherwise we'll give you a link to send them.</p>
+        </div>
+        <div class="form-group">
+          <label for="inv-role">Role</label>
+          <select id="inv-role">
+            <option value="member" selected>Member — can see and share</option>
+            <option value="admin">Admin — can also invite and remove</option>
+          </select>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" id="inv-cancel">Cancel</button>
+        <button class="btn btn-primary" type="submit" form="invite-form" id="inv-submit">Send invite</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  overlay.querySelector("#inv-cancel").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  document.addEventListener("keydown", onKey);
+
+  overlay
+    .querySelector("#invite-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = overlay.querySelector("#inv-email").value.trim();
+      const role = overlay.querySelector("#inv-role").value;
+      if (!email) return;
+      const submit = overlay.querySelector("#inv-submit");
+      submit.disabled = true;
+      submit.textContent = "Sending…";
+      try {
+        const result = await api(`/api/groups/${currentGroupId}/invite`, {
+          method: "POST",
+          body: JSON.stringify({ email, role }),
+        });
+        if (result.invite_url) {
+          // No MiCal account yet — show the link so the inviter can share it.
+          showInviteLinkResult(overlay, email, result.invite_url);
+        } else if (result.already_member) {
+          showSuccess(`${email} is already a member.`);
+          close();
+          await loadGroupSettings();
+        } else {
+          showSuccess(`Invited ${email}.`);
+          close();
+          await loadGroupSettings();
+        }
+      } catch (err) {
+        submit.disabled = false;
+        submit.textContent = "Send invite";
+        showError(err.message);
+      }
     });
-    showSuccess(`Invited ${email.trim()}.`);
-    await loadGroupSettings();
-  } catch (err) {
-    showError(err.message);
-  }
+}
+
+// Replace the form body with a copy-the-link state once we know the invitee
+// isn't on MiCal yet. The link expires in 30 days; the dialog remembers
+// what email it went to so the inviter can confirm.
+function showInviteLinkResult(overlay, email, inviteUrl) {
+  const dialog = overlay.querySelector(".invite-dialog");
+  dialog.innerHTML = `
+    <div class="modal-header">
+      <h3>Invite ready to share</h3>
+      <button class="modal-close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <p><strong>${escapeHtml(email)}</strong> isn't on MiCal yet — that's fine. Send them this link:</p>
+      <div class="invite-link-row">
+        <input type="text" id="invite-link" readonly value="${escapeHtml(inviteUrl)}">
+        <button class="btn btn-primary btn-sm" id="invite-copy">Copy</button>
+      </div>
+      <p class="form-hint">The link signs them in and joins them to the group automatically. Expires in 30 days.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" type="button" id="invite-done">Done</button>
+    </div>
+  `;
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+    loadGroupSettings();
+  };
+  dialog.querySelector(".modal-close").addEventListener("click", close);
+  dialog.querySelector("#invite-done").addEventListener("click", close);
+  dialog.querySelector("#invite-copy").addEventListener("click", async () => {
+    const input = dialog.querySelector("#invite-link");
+    try {
+      await navigator.clipboard.writeText(input.value);
+    } catch {
+      input.select();
+      document.execCommand("copy");
+    }
+    showSuccess("Link copied.");
+  });
 }
 
 async function openShareDialog() {
@@ -2406,26 +2594,55 @@ function renderEventTypes() {
 
   let listHtml = "";
   if (eventTypes.length === 0) {
-    listHtml = emptyState({
-      illustrationName: "list",
-      headline: "Set up a booking page",
-      subhead:
-        "Pick a name, a duration, and a calendar — clients book without the back-and-forth.",
-    });
+    // Two paths: a one-click "use the smart defaults" (25/50 with built-in
+    // buffers per docnotes.net/why-i-schedule-25-minute-meetings/), and the
+    // existing custom-create flow below the fold. Defaults need a writable
+    // calendar — gate the CTA on that.
+    const writableCal = (calendars || []).find(
+      (c) => c.provider !== "ics" && c.enabled,
+    );
+    const defaultsCta = writableCal
+      ? `<button class="btn btn-primary" onclick="seedDefaultEventTypes()">Use 25 + 50-minute defaults</button>`
+      : "";
+    listHtml = `
+      <div class="empty-state">
+        ${illustration("list")}
+        <h3>Set up a booking page</h3>
+        <p>The smartest meetings end before the hour. We'll create two booking pages — 25 minutes (with a 5-min buffer) and 50 minutes (with 10) — so back-to-back meetings actually leave room to breathe.</p>
+        <div class="empty-state-cta" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+          ${defaultsCta}
+        </div>
+        <p class="muted" style="margin-top:8px">Or scroll down to set up a custom one.</p>
+      </div>
+    `;
   } else {
+    // Replaced "Slug" column with "Booking URL" — that's the answer to
+    // "where do I send people?". Click-to-copy + new-tab open.
+    const tenantSlug = currentUser?.tenant_slug || "";
+    const baseOrigin = window.location.origin;
     listHtml = `
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Name</th><th>Slug</th><th>Duration</th><th>Target</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>Name</th><th>Booking URL</th><th>Duration</th><th>Target</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody>
             ${eventTypes
-              .map(
-                (et) => `
+              .map((et) => {
+                const url = tenantSlug
+                  ? `${baseOrigin}/book/?tenant=${encodeURIComponent(tenantSlug)}&event=${encodeURIComponent(et.slug)}`
+                  : "";
+                return `
               <tr data-id="${escapeHtml(et.id)}">
                 <td><strong>${escapeHtml(et.name)}</strong></td>
-                <td><code style="font-size:0.8rem;background:var(--cloud);padding:2px 6px;border-radius:4px;">${escapeHtml(et.slug)}</code></td>
+                <td>
+                  ${
+                    url
+                      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="booking-url-cell" title="${escapeHtml(url)}">/book/…/${escapeHtml(et.slug)}</a>
+                       <button class="icon-btn" title="Copy URL" onclick="copyToClipboard('${escapeHtml(url)}')">${icon("check", 14)}</button>`
+                      : `<span class="muted">—</span>`
+                  }
+                </td>
                 <td>${et.duration_min} min</td>
                 <td>${calendarLabel(et.target_calendar_id)}</td>
                 <td>${et.enabled ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Disabled</span>'}</td>
@@ -2435,14 +2652,31 @@ function renderEventTypes() {
                     <button class="icon-btn danger" onclick="deleteEventType('${escapeHtml(et.id)}')" title="Delete">${icon("trash", 14)}</button>
                   </div>
                 </td>
-              </tr>
-            `,
-              )
+              </tr>`;
+              })
               .join("")}
           </tbody>
         </table>
       </div>
     `;
+  }
+
+  // Tiny helper used by the inline copy button — reachable from any tab.
+  if (!window.copyToClipboard) {
+    window.copyToClipboard = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        showSuccess("Link copied.");
+      } catch {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        showSuccess("Link copied.");
+      }
+    };
   }
 
   const isEditing = editingEventTypeId !== null;
@@ -2493,13 +2727,14 @@ function renderEventTypes() {
           <span class="advanced-chevron">▸</span> Advanced options
         </button>
 
-        <div class="advanced-fields" id="advanced-fields" style="display:none">
-          <div class="form-group">
-            <label for="et-slug">URL slug</label>
-            <input type="text" id="et-slug" placeholder="30min-meeting" required pattern="[a-zA-Z0-9_-]+">
-            <p class="form-hint">Used in the public booking URL. Auto-generated from the name.</p>
-          </div>
+        <!-- Slug is auto-generated from the name and never user-editable.
+             It's just a URL detail — exposing it as a "URL slug" field
+             made users wonder what to type. We hide it entirely; the
+             form-load handler still populates it for edits, and the
+             submit handler reads it. -->
+        <input type="hidden" id="et-slug" value="">
 
+        <div class="advanced-fields" id="advanced-fields" style="display:none">
           <div class="form-group">
             <label>Available days</label>
             <div class="weekday-group" id="et-weekdays-group">
@@ -2688,6 +2923,67 @@ function readWeekdaysMask() {
   return mask;
 }
 
+// Pre-seed 25 + 50 minute event types with built-in buffers, leveraging
+// the back-to-back-meetings recovery argument from docnotes.net. Defaults:
+//   - weekdays Mon–Fri, 9–5
+//   - lead 0, horizon 25 days
+//   - target = first writable calendar
+//   - location = Google Meet
+// The user lands on the populated list and can edit anything.
+async function seedDefaultEventTypes() {
+  const target = (calendars || []).find(
+    (c) => c.provider !== "ics" && c.enabled,
+  );
+  if (!target) {
+    showError("Connect a Google or Outlook calendar first.");
+    return;
+  }
+  const common = {
+    weekdays_mask: 31, // Mon–Fri (1+2+4+8+16)
+    work_hours_json: JSON.stringify({ start: "09:00", end: "17:00" }),
+    target_calendar_id: target.id,
+    location_mode: "meet",
+    lead_min: 0,
+    horizon_days: 25,
+    enabled: 1,
+  };
+  const defaults = [
+    {
+      ...common,
+      slug: "25",
+      name: "25-minute meeting",
+      duration_min: 25,
+      buffer_min: 5, // 5-min recovery between bookings
+    },
+    {
+      ...common,
+      slug: "50",
+      name: "50-minute meeting",
+      duration_min: 50,
+      buffer_min: 10, // 10-min recovery
+    },
+  ];
+  try {
+    // POST sequentially so we surface a clear error on the second if the
+    // first creates a conflict (slug uniqueness etc.).
+    const created = [];
+    for (const body of defaults) {
+      const ev = await api("/api/event-types", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      created.push(ev);
+    }
+    eventTypes = await api("/api/event-types");
+    renderEventTypes();
+    showSuccess("Created 25-minute and 50-minute booking pages.");
+    // Show the first URL prominently — user can grab the second from the list.
+    if (created[0]) showBookingUrlModal(created[0]);
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
 async function handleEventTypeSubmit(e) {
   e.preventDefault();
   clearErrors("#event-types-content");
@@ -2748,18 +3044,76 @@ async function handleEventTypeSubmit(e) {
         body: JSON.stringify(patchBody),
       });
       editingEventTypeId = null;
+      showSuccess("Booking page updated.");
     } else {
-      await api("/api/event-types", {
+      const created = await api("/api/event-types", {
         method: "POST",
         body: JSON.stringify(body),
       });
+      // Surface the public URL prominently — the user just made one and
+      // the next thing they want to know is "where is it?".
+      showBookingUrlModal(created);
     }
     $("#event-type-form").reset();
     eventTypes = await api("/api/event-types");
     renderEventTypes();
   } catch (err) {
-    showError(err.message, "#event-types-content");
+    showError(err.message);
   }
+}
+
+// Modal that shows the freshly-minted booking URL with a copy button.
+// Called after POST /api/event-types succeeds. We compose the URL from the
+// tenant slug (in /api/auth/me) and the event-type slug.
+function showBookingUrlModal(eventType) {
+  const tenantSlug = currentUser?.tenant_slug;
+  if (!tenantSlug || !eventType?.slug) return;
+  const base = window.location.origin;
+  const url = `${base}/book/?tenant=${encodeURIComponent(tenantSlug)}&event=${encodeURIComponent(eventType.slug)}`;
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open";
+  overlay.innerHTML = `
+    <div class="modal-dialog booking-url-dialog">
+      <div class="modal-header">
+        <h3>Your booking page is live</h3>
+        <button class="modal-close" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p>Share this link with anyone who wants to book a <strong>${escapeHtml(eventType.name)}</strong> with you:</p>
+        <div class="invite-link-row">
+          <input type="text" id="bk-link" readonly value="${escapeHtml(url)}">
+          <button class="btn btn-primary btn-sm" id="bk-copy">Copy</button>
+        </div>
+        <p class="form-hint">No account required for the person booking. They pick a time, fill out their details, and it lands on your calendar.</p>
+      </div>
+      <div class="modal-footer">
+        <a class="btn btn-secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open page</a>
+        <button class="btn btn-primary" type="button" id="bk-done">Done</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+  };
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  overlay.querySelector("#bk-done").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector("#bk-copy").addEventListener("click", async () => {
+    const input = overlay.querySelector("#bk-link");
+    try {
+      await navigator.clipboard.writeText(input.value);
+    } catch {
+      input.select();
+      document.execCommand("copy");
+    }
+    showSuccess("Link copied.");
+  });
 }
 
 function editEventType(id) {
@@ -2978,6 +3332,38 @@ function checkPostOAuthRedirect() {
   } catch {}
 }
 
+// If the URL carries ?invite=<token>, redeem it now. Strips the param either
+// way so a refresh doesn't replay. Login forwards invites through OAuth via
+// return_to, so this fires the first time the user lands on /app/.
+async function checkInviteRedeem() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("invite");
+  if (!token) return;
+  params.delete("invite");
+  const next = params.toString();
+  history.replaceState(
+    null,
+    "",
+    window.location.pathname + (next ? "?" + next : ""),
+  );
+  try {
+    const result = await api("/api/groups/redeem-invite", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    const noun = result.group_type === "family" ? "family" : "team";
+    if (result.status === "already_member") {
+      showSuccess(`Already in "${result.group_name}".`);
+    } else {
+      showSuccess(`Joined the ${noun} "${result.group_name}".`);
+    }
+    await loadGroups();
+    selectGroup(result.group_id);
+  } catch (err) {
+    showError(`Couldn't redeem invite: ${err.message}`);
+  }
+}
+
 // ─── Init ───
 async function init() {
   try {
@@ -2986,6 +3372,8 @@ async function init() {
     // Kick off group load in parallel — switcher self-renders when ready.
     loadGroups();
     checkPostOAuthRedirect();
+    // Fire-and-forget — redeem completes asynchronously and re-renders.
+    checkInviteRedeem();
     showTab("overview");
   } catch (err) {
     // 401 handled by api()

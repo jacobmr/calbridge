@@ -10,7 +10,7 @@
  * segment. We parse :id from the URL.
  */
 
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { getDb } from "../../../db/client.mjs";
 import { requireUser } from "../../../lib/session.mjs";
 import {
@@ -19,6 +19,16 @@ import {
   requireRole,
   sendError,
 } from "../../../lib/groups.mjs";
+
+const INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function appBaseUrl() {
+  return process.env.APP_BASE_URL || "https://www.mical.net";
+}
+
+function newInviteToken() {
+  return randomBytes(24).toString("base64url");
+}
 
 function parseGroupId(req) {
   const url = new URL(req.url, "http://localhost");
@@ -76,20 +86,68 @@ export default async function handler(req, res) {
     }
 
     const target = await findUserByEmail(email);
-    if (!target) {
-      // No matching user yet. We could create a "pending by email" record,
-      // but the schema keys memberships by user_id (NOT NULL). For now,
-      // the inviter has to wait for the invitee to sign up. This is a
-      // reasonable v1 constraint — we'll add email-keyed pending invites
-      // when we build the email notification flow.
-      const err = new Error(
-        "no MiCal user with that email yet — ask them to sign up first",
-      );
-      err.statusCode = 404;
-      throw err;
-    }
-
     const db = getDb();
+
+    // Inviting someone who isn't a MiCal user yet — the whole point of
+    // an "invite to MiCal" flow. We create an email-keyed invite with a
+    // token-based signup link; on first OAuth sign-in with this email,
+    // the OAuth callback converts the invite to an active membership.
+    if (!target) {
+      const now = Date.now();
+      // Idempotent: re-inviting the same email refreshes token + role.
+      const existing = await db.execute({
+        sql: "SELECT id FROM group_invites WHERE group_id = ? AND email = ?",
+        args: [groupId, email],
+      });
+      const token = newInviteToken();
+      if (existing.rows[0]) {
+        await db.execute({
+          sql: `UPDATE group_invites
+                   SET token = ?, role = ?, invited_by_user_id = ?,
+                       created_at = ?, expires_at = ?
+                 WHERE id = ?`,
+          args: [
+            token,
+            role,
+            user.id,
+            now,
+            now + INVITE_TTL_MS,
+            existing.rows[0].id,
+          ],
+        });
+      } else {
+        await db.execute({
+          sql: `INSERT INTO group_invites
+                  (id, group_id, email, role, token, invited_by_user_id,
+                   created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            randomUUID(),
+            groupId,
+            email,
+            role,
+            token,
+            user.id,
+            now,
+            now + INVITE_TTL_MS,
+          ],
+        });
+      }
+      const inviteUrl = `${appBaseUrl()}/login?invite=${encodeURIComponent(token)}`;
+      res.statusCode = 201;
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          ok: true,
+          status: "pending_signup",
+          email,
+          role,
+          invite_url: inviteUrl,
+          expires_at: now + INVITE_TTL_MS,
+        }),
+      );
+      return;
+    }
 
     // Idempotent: if a membership row already exists, surface its current
     // state instead of erroring. Re-inviting a removed member flips them
