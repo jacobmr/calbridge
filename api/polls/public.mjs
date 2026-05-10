@@ -17,6 +17,7 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/client.mjs";
 import { loadSession } from "../../lib/session.mjs";
 import { readJson, sendError } from "../../lib/groups.mjs";
+import { freeBusyForUser } from "../../lib/user-availability.mjs";
 
 async function getPublicPoll(req, res) {
   const url = new URL(req.url, "http://localhost");
@@ -66,8 +67,9 @@ async function getPublicPoll(req, res) {
     (org.email || "").split("@")[0] ||
     "MiCal user";
 
-  // Opportunistic session — anonymous if absent. We use the session only to
-  // look up the viewer's existing response and (in stage 3) their calendars.
+  // Opportunistic session — anonymous if absent. We use the session both to
+  // look up the viewer's existing response and to mark each option busy or
+  // free against their connected calendars (the headline differentiator).
   let viewer = { signed_in: false };
   let myResponse = null;
   const session = await loadSession(req);
@@ -90,6 +92,24 @@ async function getPublicPoll(req, res) {
       });
       if (resp.rows[0]) {
         myResponse = formatResponse(resp.rows[0]);
+      }
+
+      // Pre-check: mark each option busy/free against the viewer's calendars.
+      // Failure here is non-fatal — falling back to undefined leaves the pills
+      // unrendered, identical to the anonymous experience. Better than failing
+      // the whole page when a provider is flaky. Log so we can see it in
+      // Vercel function logs without surfacing the noise to the user.
+      try {
+        const busy = await freeBusyForUser({
+          userId: u.id,
+          windows: options.map((o) => ({
+            start_ms: o.start_ms,
+            end_ms: o.end_ms,
+          })),
+        });
+        for (let i = 0; i < options.length; i++) options[i].busy = busy[i];
+      } catch (err) {
+        console.error("poll free/busy pre-check failed:", err.message);
       }
     }
   }
