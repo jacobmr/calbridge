@@ -216,3 +216,191 @@ test("groups CRUD + invite + join + remove flow", async () => {
     assert.equal(selfNuke.status, 400, "last owner can't leave");
   }
 });
+
+test("group shares + receive settings", async () => {
+  const { migrate } = await import("../db/migrate.mjs");
+  await migrate({ verbose: false });
+
+  const { getDb } = await import("../db/client.mjs");
+  const db = getDb();
+  const { createSession, buildCookieValue } =
+    await import("../lib/session.mjs");
+
+  // Two users with a tenant + calendar each, joined to one group.
+  const aliceId = randomUUID();
+  const bobId = randomUUID();
+  const aliceTenantId = randomUUID();
+  const aliceCalId = randomUUID();
+  const groupId = randomUUID();
+  const aliceMembershipId = randomUUID();
+  const bobMembershipId = randomUUID();
+  const now = Date.now();
+
+  await db.execute({
+    sql: "INSERT INTO users (id, email, created_at) VALUES (?, ?, ?), (?, ?, ?)",
+    args: [aliceId, `a-${now}@x.com`, now, bobId, `b-${now}@x.com`, now],
+  });
+  await db.execute({
+    sql: "INSERT INTO tenants (id, slug, name, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?)",
+    args: [aliceTenantId, `at-${now}`, "Alice", aliceId, now],
+  });
+  await db.execute({
+    sql: `INSERT INTO calendars (id, tenant_id, provider, provider_calendar_id, label, role)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      aliceCalId,
+      aliceTenantId,
+      "google",
+      "alice-cal",
+      "Alice Personal",
+      "owner",
+    ],
+  });
+  await db.execute({
+    sql: `INSERT INTO groups (id, name, slug, type, created_by_user_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [groupId, "Test Family", `tf-${now}`, "family", aliceId, now, now],
+  });
+  await db.execute({
+    sql: `INSERT INTO group_memberships (id, group_id, user_id, role, status, joined_at, created_at)
+          VALUES (?, ?, ?, 'owner', 'active', ?, ?), (?, ?, ?, 'member', 'active', ?, ?)`,
+    args: [
+      aliceMembershipId,
+      groupId,
+      aliceId,
+      now,
+      now,
+      bobMembershipId,
+      groupId,
+      bobId,
+      now,
+      now,
+    ],
+  });
+
+  const aliceCookie = `cb_session=${buildCookieValue(await createSession(aliceId))}`;
+  const bobCookie = `cb_session=${buildCookieValue(await createSession(bobId))}`;
+
+  const sharesHandler = (await import("../api/groups/[id]/shares.mjs")).default;
+  const shareItemHandler = (
+    await import("../api/groups/[id]/shares/[calendarId].mjs")
+  ).default;
+  const receiveHandler = (
+    await import("../api/groups/[id]/receive-settings/[sharerId].mjs")
+  ).default;
+
+  // Alice shares her calendar at full
+  const added = await invoke(sharesHandler, {
+    method: "POST",
+    url: `/api/groups/${groupId}/shares`,
+    body: { calendar_id: aliceCalId, share_level: "full" },
+    cookie: aliceCookie,
+  });
+  assert.equal(added.status, 201);
+  assert.equal(added.body.share_level, "full");
+
+  // Repeat POST with different level — idempotent upsert
+  const reAdd = await invoke(sharesHandler, {
+    method: "POST",
+    url: `/api/groups/${groupId}/shares`,
+    body: { calendar_id: aliceCalId, share_level: "free_busy" },
+    cookie: aliceCookie,
+  });
+  assert.equal(reAdd.status, 200);
+  assert.equal(reAdd.body.already_existed, true);
+  assert.equal(reAdd.body.share_level, "free_busy");
+
+  // GET reflects the change
+  const list = await invoke(sharesHandler, {
+    method: "GET",
+    url: `/api/groups/${groupId}/shares`,
+    cookie: aliceCookie,
+  });
+  assert.equal(list.status, 200);
+  assert.equal(list.body.mine.length, 1);
+  assert.equal(list.body.mine[0].share_level, "free_busy");
+
+  // Alice can't share Bob's calendar (she doesn't own one)
+  const notMine = await invoke(sharesHandler, {
+    method: "POST",
+    url: `/api/groups/${groupId}/shares`,
+    body: { calendar_id: randomUUID(), share_level: "full" },
+    cookie: aliceCookie,
+  });
+  assert.equal(notMine.status, 404);
+
+  // PATCH the level
+  const patched = await invoke(shareItemHandler, {
+    method: "PATCH",
+    url: `/api/groups/${groupId}/shares/${aliceCalId}`,
+    body: { share_level: "full" },
+    cookie: aliceCookie,
+  });
+  assert.equal(patched.status, 200);
+  assert.equal(patched.body.share_level, "full");
+
+  // Bob upserts how he receives events from Alice — full view + busy_only push + prefix
+  const recv = await invoke(receiveHandler, {
+    method: "PATCH",
+    url: `/api/groups/${groupId}/receive-settings/${aliceId}`,
+    body: {
+      receive_level: "full",
+      push_level: "busy_only",
+      event_prefix: "[Alex] ",
+    },
+    cookie: bobCookie,
+  });
+  assert.equal(recv.status, 201);
+  assert.equal(recv.body.receive_level, "full");
+  assert.equal(recv.body.push_level, "busy_only");
+  assert.equal(recv.body.event_prefix, "[Alex] ");
+
+  // Second PATCH — partial update; unset fields should retain their prior value
+  const recv2 = await invoke(receiveHandler, {
+    method: "PATCH",
+    url: `/api/groups/${groupId}/receive-settings/${aliceId}`,
+    body: { receive_level: "free_busy" },
+    cookie: bobCookie,
+  });
+  assert.equal(recv2.status, 200);
+  assert.equal(recv2.body.receive_level, "free_busy");
+  assert.equal(
+    recv2.body.push_level,
+    "busy_only",
+    "push_level should persist across partial PATCH",
+  );
+  assert.equal(recv2.body.event_prefix, "[Alex] ");
+
+  // Bob's GET on shares should now show the receive-settings entry
+  const bobList = await invoke(sharesHandler, {
+    method: "GET",
+    url: `/api/groups/${groupId}/shares`,
+    cookie: bobCookie,
+  });
+  assert.equal(bobList.body.mine.length, 0, "Bob hasn't shared anything");
+  assert.equal(bobList.body.receiveSettings.length, 1);
+  assert.equal(bobList.body.receiveSettings[0].sharer_user_id, aliceId);
+
+  // You can't have receive settings with yourself as sharer
+  const selfRecv = await invoke(receiveHandler, {
+    method: "PATCH",
+    url: `/api/groups/${groupId}/receive-settings/${bobId}`,
+    body: { receive_level: "full" },
+    cookie: bobCookie,
+  });
+  assert.equal(selfRecv.status, 400);
+
+  // DELETE the share
+  const deleted = await invoke(shareItemHandler, {
+    method: "DELETE",
+    url: `/api/groups/${groupId}/shares/${aliceCalId}`,
+    cookie: aliceCookie,
+  });
+  assert.equal(deleted.status, 204);
+  const afterDelete = await invoke(sharesHandler, {
+    method: "GET",
+    url: `/api/groups/${groupId}/shares`,
+    cookie: aliceCookie,
+  });
+  assert.equal(afterDelete.body.mine.length, 0);
+});

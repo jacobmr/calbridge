@@ -282,6 +282,20 @@ function renderGroupSwitcher() {
   sep.className = "switcher-sep";
   menu.appendChild(sep);
 
+  // "Manage" only makes sense when a real group is selected. Hidden in
+  // Personal mode (UX principle 2 — don't render an action that has no target).
+  if (currentGroupId != null) {
+    const manage = document.createElement("button");
+    manage.type = "button";
+    manage.className = "switcher-item";
+    manage.textContent = "Manage group";
+    manage.addEventListener("click", () => {
+      closeSwitcherMenu();
+      showTab("group-settings");
+    });
+    menu.appendChild(manage);
+  }
+
   const create = document.createElement("button");
   create.type = "button";
   create.className = "switcher-item switcher-create";
@@ -347,6 +361,434 @@ async function openCreateGroupDialog() {
   }
 }
 
+// ─── Group settings page ───
+//
+// One screen, three jobs (one per card, ordered by frequency):
+//   1. Members — invite, change role, remove (admin+)
+//   2. My calendars in this group — add/remove/level
+//   3. How I receive each member's events — per-sharer settings
+// Owner-only "Delete group" lives at the bottom under a confirm button.
+let groupSettingsState = { detail: null, sharesData: null };
+
+async function loadGroupSettings() {
+  const container = $("#group-settings-content");
+  if (!currentGroupId) {
+    container.innerHTML = `
+      <div class="card empty-hero">
+        <h2>No group selected</h2>
+        <p>Pick a group from the switcher above to manage it.</p>
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading…</div>';
+  try {
+    const [detail, sharesData, cals] = await Promise.all([
+      api(`/api/groups/${currentGroupId}`),
+      api(`/api/groups/${currentGroupId}/shares`),
+      api("/api/calendars"),
+    ]);
+    groupSettingsState = { detail, sharesData };
+    calendars = cals || [];
+    renderGroupSettings();
+  } catch (err) {
+    if (err.message !== "unauthorized") {
+      container.innerHTML = `<div class="error-banner">Failed to load: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function isAdmin(role) {
+  return role === "owner" || role === "admin";
+}
+
+function renderGroupSettings() {
+  const { detail, sharesData } = groupSettingsState;
+  const container = $("#group-settings-content");
+  if (!detail) return;
+
+  const me = currentUser;
+  const myRole = detail.my_role;
+  const canAdmin = isAdmin(myRole);
+  const isOwner = myRole === "owner";
+
+  const activeMembers = (detail.members || []).filter(
+    (m) => m.status === "active",
+  );
+  const pendingMembers = (detail.members || []).filter(
+    (m) => m.status === "pending",
+  );
+  const otherMembers = activeMembers.filter((m) => m.user_id !== me?.id);
+
+  // Build maps for quick lookup in the receive-settings card
+  const myShareByCalId = new Map(
+    (sharesData?.mine || []).map((s) => [s.calendar_id, s]),
+  );
+  const receiveBySharer = new Map(
+    (sharesData?.receiveSettings || []).map((rs) => [rs.sharer_user_id, rs]),
+  );
+
+  // Calendars not yet shared in this group, eligible to add
+  const shareableCals = calendars.filter(
+    (c) => c.provider !== "ics" && !myShareByCalId.has(c.id),
+  );
+
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${escapeHtml(detail.name)}</div>
+          <div class="muted">${detail.type === "family" ? "Family" : "Team"} · ${activeMembers.length} member${activeMembers.length === 1 ? "" : "s"}</div>
+        </div>
+        ${isOwner ? `<button class="btn btn-secondary btn-sm" onclick="renameGroup()">Rename</button>` : ""}
+      </div>
+      ${detail.description ? `<p class="muted">${escapeHtml(detail.description)}</p>` : ""}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Members</div>
+        ${canAdmin ? `<button class="btn btn-primary btn-sm" onclick="openInviteDialog()">${icon("plus", 14)} Invite</button>` : ""}
+      </div>
+      ${renderMembersList(activeMembers, pendingMembers, myRole, me?.id)}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">My calendars in this group</div>
+        ${shareableCals.length ? `<button class="btn btn-secondary btn-sm" onclick="openShareDialog()">${icon("plus", 14)} Share a calendar</button>` : ""}
+      </div>
+      ${renderMyShares(sharesData?.mine || [])}
+    </div>
+
+    ${
+      otherMembers.length
+        ? `
+      <div class="card">
+        <div class="card-header"><div class="card-title">How you see each member</div></div>
+        ${otherMembers.map((m) => renderReceiveRow(m, receiveBySharer.get(m.user_id))).join("")}
+      </div>
+    `
+        : ""
+    }
+
+    ${
+      isOwner
+        ? `
+      <div class="card danger-zone">
+        <div class="card-title">Danger zone</div>
+        <p class="muted">Deleting this group removes all sharing settings and group-scoped sync flows. Members keep their own calendars and personal data.</p>
+        <button class="btn btn-danger btn-sm" onclick="deleteCurrentGroup()">Delete group</button>
+      </div>
+    `
+        : ""
+    }
+  `;
+}
+
+function renderMembersList(active, pending, myRole, myUserId) {
+  if (active.length + pending.length === 0) {
+    return `<p class="muted">Just you so far.</p>`;
+  }
+  const canAdmin = isAdmin(myRole);
+  const isOwner = myRole === "owner";
+
+  const rows = [];
+  for (const m of active) {
+    const isSelf = m.user_id === myUserId;
+    const canModify = canAdmin && !isSelf;
+    const canChangeRole = isOwner && !isSelf;
+    const display = m.display_name || (m.email || "").split("@")[0] || m.email;
+    rows.push(`
+      <div class="member-row" data-user-id="${escapeHtml(m.user_id)}">
+        <div class="member-main">
+          <div class="member-avatar">${escapeHtml(getInitials(display, m.email))}</div>
+          <div class="member-text">
+            <div class="member-name">${escapeHtml(display)}${isSelf ? ' <span class="muted">(you)</span>' : ""}</div>
+            <div class="member-email muted">${escapeHtml(m.email || "")}</div>
+          </div>
+        </div>
+        <div class="member-actions">
+          ${
+            canChangeRole
+              ? `
+            <select onchange="updateMemberRole('${escapeHtml(m.user_id)}', this.value)" class="role-select">
+              <option value="member" ${m.role === "member" ? "selected" : ""}>Member</option>
+              <option value="admin" ${m.role === "admin" ? "selected" : ""}>Admin</option>
+              <option value="owner" ${m.role === "owner" ? "selected" : ""}>Owner</option>
+            </select>
+          `
+              : `<span class="role-badge">${escapeHtml(m.role)}</span>`
+          }
+          ${
+            canModify || isSelf
+              ? `<button class="icon-btn danger" title="${isSelf ? "Leave group" : "Remove member"}" onclick="removeMember('${escapeHtml(m.user_id)}', ${isSelf})">${icon("trash", 14)}</button>`
+              : ""
+          }
+        </div>
+      </div>
+    `);
+  }
+  for (const m of pending) {
+    const display = m.display_name || (m.email || "").split("@")[0] || m.email;
+    rows.push(`
+      <div class="member-row pending" data-user-id="${escapeHtml(m.user_id)}">
+        <div class="member-main">
+          <div class="member-avatar muted">${escapeHtml(getInitials(display, m.email))}</div>
+          <div class="member-text">
+            <div class="member-name">${escapeHtml(display)} <span class="role-badge muted">invited</span></div>
+            <div class="member-email muted">${escapeHtml(m.email || "")}</div>
+          </div>
+        </div>
+        <div class="member-actions">
+          ${
+            canAdmin
+              ? `<button class="icon-btn danger" title="Cancel invite" onclick="removeMember('${escapeHtml(m.user_id)}', false)">${icon("trash", 14)}</button>`
+              : ""
+          }
+        </div>
+      </div>
+    `);
+  }
+  return rows.join("");
+}
+
+function renderMyShares(shares) {
+  if (shares.length === 0) {
+    return `<p class="muted">You haven't shared any calendars with this group yet. Click "Share a calendar" above to get started.</p>`;
+  }
+  return shares
+    .map(
+      (s) => `
+      <div class="member-row">
+        <div class="member-main">
+          ${providerIcon(s.calendar_provider)}
+          <div class="member-text">
+            <div class="member-name">${escapeHtml(s.calendar_label)}</div>
+            <div class="member-email muted">${shareLevelDescription(s.share_level)}</div>
+          </div>
+        </div>
+        <div class="member-actions">
+          <select onchange="updateShareLevel('${escapeHtml(s.calendar_id)}', this.value)" class="role-select">
+            <option value="full" ${s.share_level === "full" ? "selected" : ""}>Full detail</option>
+            <option value="free_busy" ${s.share_level === "free_busy" ? "selected" : ""}>Free/busy only</option>
+            <option value="none" ${s.share_level === "none" ? "selected" : ""}>Hidden</option>
+          </select>
+          <button class="icon-btn danger" title="Stop sharing" onclick="removeShare('${escapeHtml(s.calendar_id)}')">${icon("trash", 14)}</button>
+        </div>
+      </div>
+    `,
+    )
+    .join("");
+}
+
+function shareLevelDescription(level) {
+  if (level === "full") return "Full event detail visible to the group";
+  if (level === "free_busy") return "Only busy/free shown — no titles";
+  return "Hidden from the group for now";
+}
+
+function renderReceiveRow(member, settings) {
+  const display =
+    member.display_name || (member.email || "").split("@")[0] || member.email;
+  const recv = settings?.receive_level || "full";
+  const push = settings?.push_level || "none";
+  const prefix = settings?.event_prefix || "";
+  return `
+    <div class="receive-row" data-sharer-id="${escapeHtml(member.user_id)}">
+      <div class="receive-header">
+        <div class="member-avatar">${escapeHtml(getInitials(display, member.email))}</div>
+        <div class="member-name">${escapeHtml(display)}</div>
+      </div>
+      <div class="receive-fields">
+        <label class="field-inline">
+          <span>What I see</span>
+          <select onchange="updateReceiveSetting('${escapeHtml(member.user_id)}', 'receive_level', this.value)">
+            <option value="full" ${recv === "full" ? "selected" : ""}>Full detail</option>
+            <option value="free_busy" ${recv === "free_busy" ? "selected" : ""}>Free/busy</option>
+            <option value="none" ${recv === "none" ? "selected" : ""}>Hidden</option>
+          </select>
+        </label>
+        <label class="field-inline">
+          <span>Add to my calendar</span>
+          <select onchange="updateReceiveSetting('${escapeHtml(member.user_id)}', 'push_level', this.value)">
+            <option value="none" ${push === "none" ? "selected" : ""}>Don't add</option>
+            <option value="busy_only" ${push === "busy_only" ? "selected" : ""}>Busy only</option>
+            <option value="full" ${push === "full" ? "selected" : ""}>Full detail</option>
+          </select>
+        </label>
+        ${
+          push !== "none"
+            ? `
+          <label class="field-inline">
+            <span>Title prefix</span>
+            <input type="text" value="${escapeHtml(prefix)}" placeholder="[${escapeHtml(display.split(" ")[0] || "Name")}] "
+              onblur="updateReceiveSetting('${escapeHtml(member.user_id)}', 'event_prefix', this.value)">
+          </label>
+        `
+            : ""
+        }
+      </div>
+    </div>
+  `;
+}
+
+// ─── Group settings handlers ───
+
+async function openInviteDialog() {
+  const email = prompt("Email of person to invite");
+  if (!email) return;
+  try {
+    await api(`/api/groups/${currentGroupId}/invite`, {
+      method: "POST",
+      body: JSON.stringify({ email: email.trim() }),
+    });
+    showSuccess(`Invited ${email.trim()}.`);
+    await loadGroupSettings();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function openShareDialog() {
+  const shareableCals = calendars.filter(
+    (c) =>
+      c.provider !== "ics" &&
+      !groupSettingsState.sharesData.mine.some((s) => s.calendar_id === c.id),
+  );
+  if (shareableCals.length === 0) {
+    showError("All your calendars are already shared with this group.");
+    return;
+  }
+  const labels = shareableCals.map((c, i) => `${i + 1}. ${c.label}`).join("\n");
+  const pick = prompt(`Pick a calendar to share:\n${labels}\n\nNumber:`);
+  const idx = Number(pick) - 1;
+  const cal = shareableCals[idx];
+  if (!cal) return;
+  try {
+    await api(`/api/groups/${currentGroupId}/shares`, {
+      method: "POST",
+      body: JSON.stringify({ calendar_id: cal.id, share_level: "full" }),
+    });
+    showSuccess(`${cal.label} is now shared with the group.`);
+    await loadGroupSettings();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function updateShareLevel(calendarId, level) {
+  try {
+    await api(`/api/groups/${currentGroupId}/shares/${calendarId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ share_level: level }),
+    });
+    showSuccess("Share level updated.");
+    await loadGroupSettings();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function removeShare(calendarId) {
+  if (!confirm("Stop sharing this calendar with the group?")) return;
+  try {
+    await api(`/api/groups/${currentGroupId}/shares/${calendarId}`, {
+      method: "DELETE",
+    });
+    await loadGroupSettings();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function updateReceiveSetting(sharerId, field, value) {
+  try {
+    await api(`/api/groups/${currentGroupId}/receive-settings/${sharerId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ [field]: value }),
+    });
+    // Re-render only on push_level change since it shows/hides the prefix field.
+    if (field === "push_level") await loadGroupSettings();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function updateMemberRole(userId, role) {
+  try {
+    await api(`/api/groups/${currentGroupId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    });
+    showSuccess("Role updated.");
+    await loadGroupSettings();
+  } catch (err) {
+    showError(err.message);
+    await loadGroupSettings(); // revert UI
+  }
+}
+
+async function removeMember(userId, isSelf) {
+  const msg = isSelf
+    ? "Leave this group? You'll lose access to its shared calendars."
+    : "Remove this member? They'll lose access immediately.";
+  if (!confirm(msg)) return;
+  try {
+    await api(`/api/groups/${currentGroupId}/members/${userId}`, {
+      method: "DELETE",
+    });
+    if (isSelf) {
+      showSuccess("Left group.");
+      currentGroupId = null;
+      await loadGroups();
+      showTab("overview");
+    } else {
+      showSuccess("Member removed.");
+      await loadGroupSettings();
+    }
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function renameGroup() {
+  const next = prompt("New group name:", groupSettingsState.detail.name);
+  if (!next || !next.trim() || next === groupSettingsState.detail.name) return;
+  try {
+    await api(`/api/groups/${currentGroupId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: next.trim() }),
+    });
+    showSuccess("Renamed.");
+    await loadGroups();
+    await loadGroupSettings();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function deleteCurrentGroup() {
+  const name = groupSettingsState.detail.name;
+  const typed = prompt(
+    `This permanently deletes "${name}" and all sharing settings.\nType the group name to confirm:`,
+  );
+  if (typed !== name) {
+    if (typed != null) showError("Name didn't match — group not deleted.");
+    return;
+  }
+  try {
+    await api(`/api/groups/${currentGroupId}`, { method: "DELETE" });
+    showSuccess(`"${name}" deleted.`);
+    currentGroupId = null;
+    await loadGroups();
+    showTab("overview");
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
 // ─── Navigation ───
 //
 // Hide tabs that don't yet apply to the user's state (UX principle 2).
@@ -407,6 +849,7 @@ function showTab(tab) {
     "sync-flows": "Sync Flows",
     "event-types": "Event Types",
     bookings: "Bookings",
+    "group-settings": "Group settings",
   };
   const titleEl = $("#page-title");
   if (titleEl) titleEl.textContent = titles[tab] || "Dashboard";
@@ -421,6 +864,7 @@ function showTab(tab) {
   if (tab === "sync-flows") loadSyncFlows();
   if (tab === "event-types") loadEventTypes();
   if (tab === "bookings") loadBookings();
+  if (tab === "group-settings") loadGroupSettings();
 }
 
 // ─── Overview / Command Center ───
