@@ -124,6 +124,17 @@ body {
   text-align: center;
 }
 
+.nav-badge {
+  margin-left: auto;
+  background: var(--flow-teal);
+  color: var(--white);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+
 .sidebar-footer {
   padding: 16px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
@@ -498,6 +509,114 @@ body {
   flex-wrap: wrap;
 }
 
+/* Calendars-by-account layout */
+.account-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.account-card {
+  background: var(--white);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.account-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  background: var(--cloud);
+}
+
+.account-provider {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.account-email {
+  font-weight: 600;
+  color: var(--charcoal);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-meta {
+  font-size: 0.8rem;
+  color: var(--stone);
+  flex-shrink: 0;
+}
+
+.calendar-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  transition: background 0.12s ease;
+}
+
+.calendar-row:last-child {
+  border-bottom: none;
+}
+
+.calendar-row:hover {
+  background: rgba(15, 76, 129, 0.03);
+}
+
+.calendar-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.calendar-label {
+  font-weight: 500;
+  color: var(--charcoal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-role {
+  font-size: 0.75rem;
+  color: var(--stone);
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.calendar-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ics-add-row {
+  margin: 16px 0;
+}
+
+.ics-form-card .icon-btn {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
 /* Tables */
 .table-wrap {
   overflow-x: auto;
@@ -570,6 +689,49 @@ tbody tr:last-child td {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* Advanced-options progressive disclosure */
+.advanced-toggle {
+  margin: 16px 0 8px;
+  background: none;
+  border: none;
+  color: var(--bridge-blue);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 6px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.advanced-toggle:hover {
+  text-decoration: underline;
+}
+
+.advanced-chevron {
+  font-size: 0.7rem;
+  display: inline-block;
+  width: 12px;
+}
+
+.advanced-fields {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 16px;
+  margin-top: 8px;
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: var(--stone);
+  margin-top: 4px;
+}
+
+.form-suffix {
+  font-size: 0.85rem;
+  color: var(--stone);
+  margin-left: 6px;
 }
 
 .weekday-check {

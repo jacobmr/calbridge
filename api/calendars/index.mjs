@@ -1,11 +1,11 @@
-import { randomUUID } from 'node:crypto';
-import { getDb } from '../../db/client.mjs';
-import { requireUser } from '../../lib/session.mjs';
-import { encrypt } from '../../lib/crypto.mjs';
+import { randomUUID } from "node:crypto";
+import { getDb } from "../../db/client.mjs";
+import { requireUser } from "../../lib/session.mjs";
+import { encrypt } from "../../lib/crypto.mjs";
 
 async function getTenantForUser(db, userId) {
   const r = await db.execute({
-    sql: 'SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1',
+    sql: "SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1",
     args: [userId],
   });
   return r.rows[0] || null;
@@ -13,55 +13,61 @@ async function getTenantForUser(db, userId) {
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', (chunk) => {
+    let data = "";
+    req.on("data", (chunk) => {
       data += chunk;
     });
-    req.on('end', () => {
+    req.on("end", () => {
       try {
         resolve(data ? JSON.parse(data) : {});
       } catch (e) {
         reject(e);
       }
     });
-    req.on('error', reject);
+    req.on("error", reject);
   });
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'GET') {
+  if (req.method === "GET") {
     try {
       const { user } = await requireUser(req);
       const db = getDb();
       const tenant = await getTenantForUser(db, user.id);
       if (!tenant) {
-        const err = new Error('tenant not found');
+        const err = new Error("tenant not found");
         err.statusCode = 404;
         throw err;
       }
 
       const r = await db.execute({
-        sql: 'SELECT id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role, enabled FROM calendars WHERE tenant_id = ?',
+        sql: `SELECT c.id, c.tenant_id, c.oauth_account_id, c.provider,
+                     c.provider_calendar_id, c.label, c.role, c.enabled,
+                     oa.email AS account_email
+                FROM calendars c
+                LEFT JOIN oauth_accounts oa ON oa.id = c.oauth_account_id
+               WHERE c.tenant_id = ?
+               ORDER BY oa.email NULLS LAST, c.label`,
         args: [tenant.id],
       });
 
-      res.setHeader('content-type', 'application/json');
+      res.setHeader("content-type", "application/json");
       res.end(JSON.stringify(r.rows));
     } catch (err) {
       res.statusCode = err.statusCode || 500;
-      res.setHeader('content-type', 'application/json');
+      res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ error: err.message }));
     }
     return;
   }
 
-  if (req.method === 'POST') {
+  if (req.method === "POST") {
     try {
       const { user } = await requireUser(req);
       const db = getDb();
       const tenant = await getTenantForUser(db, user.id);
       if (!tenant) {
-        const err = new Error('tenant not found');
+        const err = new Error("tenant not found");
         err.statusCode = 404;
         throw err;
       }
@@ -69,7 +75,7 @@ export default async function handler(req, res) {
       const body = await readJson(req);
       const { label, ics_url, role } = body;
       if (!label || !ics_url || !role) {
-        const err = new Error('missing required fields: label, ics_url, role');
+        const err = new Error("missing required fields: label, ics_url, role");
         err.statusCode = 400;
         throw err;
       }
@@ -79,26 +85,26 @@ export default async function handler(req, res) {
         sql: `INSERT INTO calendars
           (id, tenant_id, provider, provider_calendar_id, ics_url_enc, label, role, enabled)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [id, tenant.id, 'ics', null, encrypt(ics_url), label, role, 1],
+        args: [id, tenant.id, "ics", null, encrypt(ics_url), label, role, 1],
       });
 
       const r = await db.execute({
-        sql: 'SELECT id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role, enabled FROM calendars WHERE id = ?',
+        sql: "SELECT id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role, enabled FROM calendars WHERE id = ?",
         args: [id],
       });
 
       res.statusCode = 201;
-      res.setHeader('content-type', 'application/json');
+      res.setHeader("content-type", "application/json");
       res.end(JSON.stringify(r.rows[0]));
     } catch (err) {
       res.statusCode = err.statusCode || 500;
-      res.setHeader('content-type', 'application/json');
+      res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ error: err.message }));
     }
     return;
   }
 
   res.statusCode = 405;
-  res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify({ error: 'method not allowed' }));
+  res.setHeader("content-type", "application/json");
+  res.end(JSON.stringify({ error: "method not allowed" }));
 }

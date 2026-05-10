@@ -198,6 +198,43 @@ async function api(url, options = {}) {
 }
 
 // ─── Navigation ───
+//
+// Hide tabs that don't yet apply to the user's state (UX principle 2).
+//   * 0 calendars → only Overview + Calendars visible
+//   * ≥1 calendar → Sync Flows + Event Types appear
+//   * ≥1 event type → Bookings appears
+// Bookings count badge appears when bookingsNew > 0.
+function applyNavVisibility(counts) {
+  if (!counts) return;
+  const show = {
+    overview: true,
+    calendars: true,
+    "sync-flows": counts.calendars > 0,
+    "event-types": counts.calendars > 0,
+    bookings: counts.eventTypes > 0 || counts.bookings > 0,
+  };
+  $$(".nav-item").forEach((btn) => {
+    const t = btn.dataset.tab;
+    btn.style.display = show[t] === false ? "none" : "";
+  });
+
+  // Bookings "new" badge (purely informational)
+  const bookingsBtn = document.querySelector('.nav-item[data-tab="bookings"]');
+  if (bookingsBtn) {
+    let badge = bookingsBtn.querySelector(".nav-badge");
+    if (counts.bookingsNew > 0) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "nav-badge";
+        bookingsBtn.appendChild(badge);
+      }
+      badge.textContent = String(counts.bookingsNew);
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+}
+
 function showTab(tab) {
   currentTab = tab;
 
@@ -249,6 +286,7 @@ async function loadOverview() {
     ]);
     currentUser = me;
     renderUserInfo();
+    applyNavVisibility(overview?.counts);
     renderOverview(overview);
   } catch (err) {
     if (err.message !== "unauthorized") {
@@ -495,89 +533,158 @@ async function loadCalendars() {
   }
 }
 
+// Render a single calendar row inside an account section. Compact: label,
+// role chip, enabled toggle, remove button. No provider column — context
+// already provides that.
+function renderCalendarRow(cal) {
+  return `
+    <div class="calendar-row" data-id="${escapeHtml(cal.id)}">
+      <div class="calendar-row-main">
+        <span class="calendar-label">${escapeHtml(cal.label)}</span>
+        ${cal.role ? `<span class="calendar-role">${escapeHtml(cal.role)}</span>` : ""}
+      </div>
+      <div class="calendar-row-actions">
+        <label class="toggle" title="${cal.enabled ? "Active" : "Disabled"}">
+          <input type="checkbox" ${cal.enabled ? "checked" : ""} onchange="toggleCalendar('${escapeHtml(cal.id)}', this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+        <button class="icon-btn danger" onclick="deleteCalendar('${escapeHtml(cal.id)}')" title="Remove this calendar">${icon("trash", 14)}</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderCalendars() {
   const container = $("#calendars-content");
   clearErrors(container);
 
-  let listHtml = "";
-  if (calendars.length === 0) {
-    listHtml = `
-      <div class="empty-state">
-        <div class="empty-state-icon">${icon("calendar", 40)}</div>
-        <h3>No calendars connected</h3>
-        <p>Discover calendars from your accounts or add an ICS feed to get started.</p>
-      </div>
-    `;
-  } else {
-    listHtml = `
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Provider</th><th>Label</th><th>Role</th><th>Status</th><th style="width:100px;text-align:right">Actions</th></tr>
-          </thead>
-          <tbody>
-            ${calendars
-              .map(
-                (cal) => `
-              <tr data-id="${escapeHtml(cal.id)}">
-                <td><div class="provider-icon">${providerIcon(cal.provider)} ${providerName(cal.provider)}</div></td>
-                <td>${escapeHtml(cal.label)}</td>
-                <td>${escapeHtml(cal.role)}</td>
-                <td>
-                  <label class="toggle" title="${cal.enabled ? "Active" : "Disabled"}">
-                    <input type="checkbox" ${cal.enabled ? "checked" : ""} onchange="toggleCalendar('${escapeHtml(cal.id)}', this.checked)">
-                    <span class="toggle-slider"></span>
-                  </label>
-                </td>
-                <td style="text-align:right">
-                  <button class="btn btn-danger btn-sm" onclick="deleteCalendar('${escapeHtml(cal.id)}')" title="Remove this calendar">${icon("trash", 14)} Remove</button>
-                </td>
-              </tr>
-            `,
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
+  // Group: connected accounts (Google/Outlook) by oauth_account_id;
+  // ICS feeds in their own section.
+  const accountGroups = new Map(); // key = oauth_account_id
+  const icsFeeds = [];
+  for (const cal of calendars) {
+    const provider = String(cal.provider).toLowerCase();
+    if (provider === "ics") {
+      icsFeeds.push(cal);
+    } else if (cal.oauth_account_id) {
+      if (!accountGroups.has(cal.oauth_account_id)) {
+        accountGroups.set(cal.oauth_account_id, {
+          accountId: cal.oauth_account_id,
+          provider: cal.provider,
+          email: cal.account_email || "Unknown account",
+          calendars: [],
+        });
+      }
+      accountGroups.get(cal.oauth_account_id).calendars.push(cal);
+    }
   }
 
-  container.innerHTML = `
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Connected Calendars</div>
-        <div class="btn-group">
-          <a class="btn btn-secondary btn-sm" href="/api/oauth/google/init">+ Google</a>
-          <a class="btn btn-secondary btn-sm" href="/api/oauth/microsoft/init">+ Outlook</a>
-          <button class="btn btn-primary btn-sm" onclick="discoverCalendars()">
-            ${icon("search", 14)} Discover
-          </button>
+  // Empty state: no accounts AND no feeds
+  if (accountGroups.size === 0 && icsFeeds.length === 0) {
+    container.innerHTML = `
+      <div class="card empty-hero">
+        <div class="empty-state-icon">${icon("calendar", 48)}</div>
+        <h2>Connect a calendar</h2>
+        <p>Pick a provider to link your calendars, or add an ICS feed by URL.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/api/oauth/google/init">Connect Google</a>
+          <a class="btn btn-secondary" href="/api/oauth/microsoft/init">Connect Outlook</a>
+          <button class="btn btn-secondary" onclick="toggleIcsForm()">Add ICS feed</button>
         </div>
       </div>
-      <div id="calendars-list">${listHtml}</div>
-    </div>
+      ${renderIcsForm({ initiallyHidden: true })}
+    `;
+    return;
+  }
 
-    <div class="card">
-      <div class="card-title" style="margin-bottom:16px">Add ICS Feed</div>
+  const accountsHtml = [...accountGroups.values()]
+    .map(
+      (group) => `
+        <section class="account-card" data-account-id="${escapeHtml(group.accountId)}">
+          <header class="account-header">
+            <span class="account-provider">${providerIcon(group.provider)}</span>
+            <span class="account-email">${escapeHtml(group.email)}</span>
+            <span class="account-meta">${group.calendars.length} calendar${group.calendars.length === 1 ? "" : "s"}</span>
+          </header>
+          <div class="calendar-rows">
+            ${group.calendars.map(renderCalendarRow).join("")}
+          </div>
+        </section>
+      `,
+    )
+    .join("");
+
+  const icsHtml = icsFeeds.length
+    ? `
+        <section class="account-card">
+          <header class="account-header">
+            <span class="account-provider">${providerIcon("ics")}</span>
+            <span class="account-email">Other feeds</span>
+            <span class="account-meta">${icsFeeds.length} ICS feed${icsFeeds.length === 1 ? "" : "s"}</span>
+          </header>
+          <div class="calendar-rows">
+            ${icsFeeds.map(renderCalendarRow).join("")}
+          </div>
+        </section>
+      `
+    : "";
+
+  container.innerHTML = `
+    <div class="account-toolbar">
+      <div class="btn-group">
+        <a class="btn btn-secondary btn-sm" href="/api/oauth/google/init">+ Google</a>
+        <a class="btn btn-secondary btn-sm" href="/api/oauth/microsoft/init">+ Outlook</a>
+        <button class="btn btn-primary btn-sm" onclick="discoverCalendars()">
+          ${icon("search", 14)} Discover
+        </button>
+      </div>
+    </div>
+    ${accountsHtml}
+    ${icsHtml}
+    <div class="ics-add-row">
+      <button class="btn btn-secondary btn-sm" onclick="toggleIcsForm()">
+        ${icon("plus", 14)} Add ICS feed
+      </button>
+    </div>
+    ${renderIcsForm({ initiallyHidden: true })}
+  `;
+}
+
+// The ICS-feed form is collapsed by default; revealed via toggleIcsForm().
+function renderIcsForm({ initiallyHidden = true } = {}) {
+  return `
+    <div class="card ics-form-card" id="ics-form-card" style="${initiallyHidden ? "display:none" : ""}">
+      <div class="card-header">
+        <div class="card-title">Add ICS feed</div>
+        <button class="icon-btn" onclick="toggleIcsForm(false)" title="Close">×</button>
+      </div>
       <form id="ics-form" onsubmit="handleIcsSubmit(event)">
         <div class="form-row">
           <div class="form-group">
             <label for="ics-label">Label</label>
-            <input type="text" id="ics-label" placeholder="My Team Calendar" required>
+            <input type="text" id="ics-label" placeholder="My team calendar" required>
           </div>
           <div class="form-group">
             <label for="ics-url">ICS URL</label>
             <input type="url" id="ics-url" placeholder="https://example.com/calendar.ics" required>
           </div>
-          <div class="form-group">
-            <label for="ics-role">Role</label>
-            <input type="text" id="ics-role" placeholder="reader" required>
-          </div>
         </div>
-        <button type="submit" class="btn btn-primary">Add ICS Feed</button>
+        <button type="submit" class="btn btn-primary">Add feed</button>
       </form>
     </div>
   `;
+}
+
+function toggleIcsForm(force) {
+  const card = $("#ics-form-card");
+  if (!card) return;
+  const isHidden = card.style.display === "none" || !card.style.display;
+  const next = typeof force === "boolean" ? force : isHidden;
+  card.style.display = next ? "" : "none";
+  if (next) {
+    const labelInput = $("#ics-label");
+    if (labelInput) labelInput.focus();
+  }
 }
 
 async function discoverCalendars() {
@@ -748,7 +855,8 @@ async function handleIcsSubmit(e) {
   const body = {
     label: $("#ics-label").value.trim(),
     ics_url: $("#ics-url").value.trim(),
-    role: $("#ics-role").value.trim(),
+    // ICS feeds are inherently read-only; the user shouldn't have to pick a role.
+    role: "reader",
   };
 
   try {
@@ -756,8 +864,9 @@ async function handleIcsSubmit(e) {
     $("#ics-form").reset();
     calendars = await api("/api/calendars");
     renderCalendars();
+    showSuccess("ICS feed added.");
   } catch (err) {
-    showError(err.message, "#calendars-content");
+    showError(err.message);
   }
 }
 
@@ -1302,97 +1411,122 @@ function renderEventTypes() {
     <div class="card">
       <div class="card-title" style="margin-bottom:16px">${isEditing ? "Edit Event Type" : "Create Event Type"}</div>
       <form id="event-type-form" onsubmit="handleEventTypeSubmit(event)">
+        <!-- Essentials: always visible. Smart defaults pre-fill — most users
+             create an event type just by typing a name and hitting Create. -->
         <div class="form-row">
-          <div class="form-group">
-            <label for="et-slug">Slug</label>
-            <input type="text" id="et-slug" placeholder="30min-meeting" required pattern="[a-zA-Z0-9_-]+">
-          </div>
           <div class="form-group">
             <label for="et-name">Name</label>
-            <input type="text" id="et-name" placeholder="30 Minute Meeting" required>
+            <input type="text" id="et-name" placeholder="30 Minute Meeting" required oninput="autoSlugFromName()">
           </div>
           <div class="form-group">
-            <label for="et-duration">Duration (min)</label>
-            <input type="number" id="et-duration" value="30" min="1" required>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="et-buffer">Buffer (min)</label>
-            <input type="number" id="et-buffer" value="0" min="0">
-          </div>
-          <div class="form-group">
-            <label for="et-lead">Lead Time (min)</label>
-            <input type="number" id="et-lead" value="0" min="0">
-          </div>
-          <div class="form-group">
-            <label for="et-horizon">Horizon (days)</label>
-            <input type="number" id="et-horizon" value="25" min="1">
+            <label for="et-duration">Duration</label>
+            <select id="et-duration" required>
+              <option value="15">15 minutes</option>
+              <option value="30" selected>30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">60 minutes</option>
+              <option value="90">90 minutes</option>
+              <option value="custom">Custom…</option>
+            </select>
+            <input type="number" id="et-duration-custom" min="1" placeholder="minutes" style="margin-top:8px;display:none">
           </div>
         </div>
-        <div class="form-row">
+        <div class="form-group">
+          <label for="et-target">Calendar</label>
+          <select id="et-target" required>
+            <option value="">Select calendar…</option>
+            ${calOptions}
+          </select>
+        </div>
+
+        <button type="button" class="advanced-toggle" id="advanced-toggle" onclick="toggleAdvancedFields()" aria-expanded="false">
+          <span class="advanced-chevron">▸</span> Advanced options
+        </button>
+
+        <div class="advanced-fields" id="advanced-fields" style="display:none">
           <div class="form-group">
-            <label for="et-location">Location</label>
+            <label for="et-slug">URL slug</label>
+            <input type="text" id="et-slug" placeholder="30min-meeting" required pattern="[a-zA-Z0-9_-]+">
+            <p class="form-hint">Used in the public booking URL. Auto-generated from the name.</p>
+          </div>
+
+          <div class="form-group">
+            <label>Available days</label>
+            <div class="weekday-group" id="et-weekdays-group">
+              ${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                .map(
+                  (d, i) => `
+                <label class="weekday-check">
+                  <input type="checkbox" data-day="${i}" ${i < 5 ? "checked" : ""}>
+                  <span>${d}</span>
+                </label>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="et-work-start">Hours — from</label>
+              <input type="time" id="et-work-start" value="09:00" required>
+            </div>
+            <div class="form-group">
+              <label for="et-work-end">Hours — to</label>
+              <input type="time" id="et-work-end" value="17:00" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="et-buffer">Buffer between bookings</label>
+              <input type="number" id="et-buffer" value="0" min="0"> <span class="form-suffix">min</span>
+            </div>
+            <div class="form-group">
+              <label for="et-lead">Min lead time</label>
+              <input type="number" id="et-lead" value="0" min="0"> <span class="form-suffix">min</span>
+            </div>
+            <div class="form-group">
+              <label for="et-horizon">Booking window</label>
+              <input type="number" id="et-horizon" value="25" min="1"> <span class="form-suffix">days ahead</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="et-location">Where you'll meet</label>
             <select id="et-location">
               <option value="meet">Google Meet</option>
               <option value="zoom">Zoom</option>
               <option value="phone">Phone</option>
-              <option value="in_person">In Person</option>
-              <option value="ask">Ask Attendee</option>
+              <option value="in_person">In person</option>
+              <option value="ask">Ask the attendee</option>
             </select>
           </div>
-          <div class="form-group">
-            <label for="et-target">Target Calendar</label>
-            <select id="et-target" required>
-              <option value="">Select calendar…</option>
-              ${calOptions}
-            </select>
+
+          <div class="form-group" style="display:flex;align-items:center;gap:12px;">
+            <label class="toggle" style="flex-shrink:0;">
+              <input type="checkbox" id="et-enabled" checked>
+              <span class="toggle-slider"></span>
+            </label>
+            <span style="font-size:0.9rem;color:var(--stone)">Enabled (visible on the booking page)</span>
           </div>
         </div>
-        <div class="form-group">
-          <label>Available Days</label>
-          <div class="weekday-group" id="et-weekdays-group">
-            ${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-              .map(
-                (d, i) => `
-              <label class="weekday-check">
-                <input type="checkbox" data-day="${i}" ${i < 5 ? "checked" : ""}>
-                <span>${d}</span>
-              </label>
-            `,
-              )
-              .join("")}
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="et-work-start">Work Hours — From</label>
-            <input type="time" id="et-work-start" value="09:00" required>
-          </div>
-          <div class="form-group">
-            <label for="et-work-end">Work Hours — To</label>
-            <input type="time" id="et-work-end" value="17:00" required>
-          </div>
-        </div>
-        <div class="form-group" style="display:flex;align-items:center;gap:12px;">
-          <label class="toggle" style="flex-shrink:0;">
-            <input type="checkbox" id="et-enabled" checked>
-            <span class="toggle-slider"></span>
-          </label>
-          <span style="font-size:0.9rem;color:var(--stone)">Enabled</span>
-        </div>
-        <div style="display:flex;gap:10px;">
-          <button type="submit" class="btn btn-primary">${isEditing ? "Update" : "Create"}</button>
+
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button type="submit" class="btn btn-primary">${isEditing ? "Save changes" : "Create"}</button>
           ${isEditing ? `<button type="button" class="btn btn-secondary" onclick="cancelEditEventType()">Cancel</button>` : ""}
         </div>
       </form>
     </div>
   `;
 
+  // When editing, expand the advanced section so the user can see what they
+  // already had set — they shouldn't have to hunt for fields they configured.
   if (editEt) {
+    toggleAdvancedFields(true);
     $("#et-slug").value = editEt.slug;
     $("#et-name").value = editEt.name;
-    $("#et-duration").value = editEt.duration_min;
+    setDurationValue(editEt.duration_min);
     $("#et-buffer").value = editEt.buffer_min;
     $("#et-lead").value = editEt.lead_min;
     $("#et-horizon").value = editEt.horizon_days;
@@ -1418,6 +1552,83 @@ function renderEventTypes() {
     $("#et-enabled").checked = editEt.enabled;
   }
 }
+
+// Convert "Quick chat" → "quick-chat". Strips diacritics and non-word chars.
+function slugify(text) {
+  return String(text || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60);
+}
+
+// Auto-fill the slug field from the name unless the user has already edited it.
+function autoSlugFromName() {
+  const slugEl = $("#et-slug");
+  const nameEl = $("#et-name");
+  if (!slugEl || !nameEl) return;
+  if (slugEl.dataset.userEdited === "true") return;
+  slugEl.value = slugify(nameEl.value);
+}
+
+// Track manual slug edits so we stop overwriting from the name field.
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "et-slug") e.target.dataset.userEdited = "true";
+});
+
+// Show/hide the advanced section. force=true|false to set explicitly.
+function toggleAdvancedFields(force) {
+  const fields = $("#advanced-fields");
+  const toggle = $("#advanced-toggle");
+  if (!fields || !toggle) return;
+  const wasHidden = fields.style.display === "none" || !fields.style.display;
+  const next = typeof force === "boolean" ? force : wasHidden;
+  fields.style.display = next ? "" : "none";
+  toggle.setAttribute("aria-expanded", String(next));
+  const chev = toggle.querySelector(".advanced-chevron");
+  if (chev) chev.textContent = next ? "▾" : "▸";
+}
+
+// Duration is a select with preset minutes + a "custom" escape hatch.
+function readDurationValue() {
+  const sel = $("#et-duration");
+  if (!sel) return 30;
+  if (sel.value === "custom")
+    return Number($("#et-duration-custom").value) || 30;
+  return Number(sel.value) || 30;
+}
+
+function setDurationValue(minutes) {
+  const sel = $("#et-duration");
+  const custom = $("#et-duration-custom");
+  if (!sel) return;
+  const presets = ["15", "30", "45", "60", "90"];
+  const m = String(minutes);
+  if (presets.includes(m)) {
+    sel.value = m;
+    if (custom) custom.style.display = "none";
+  } else {
+    sel.value = "custom";
+    if (custom) {
+      custom.style.display = "";
+      custom.value = m;
+    }
+  }
+}
+
+// Wire the duration select to reveal the custom input when chosen.
+document.addEventListener("change", (e) => {
+  if (e.target?.id === "et-duration") {
+    const custom = $("#et-duration-custom");
+    if (!custom) return;
+    custom.style.display = e.target.value === "custom" ? "" : "none";
+    if (e.target.value === "custom" && !custom.value) custom.value = "30";
+  }
+});
 
 function readWeekdaysMask() {
   let mask = 0;
@@ -1447,10 +1658,18 @@ async function handleEventTypeSubmit(e) {
     return;
   }
 
+  // Slug auto-generates from name if not edited; require non-empty.
+  let slug = $("#et-slug").value.trim();
+  if (!slug) slug = slugify($("#et-name").value);
+  if (!slug) {
+    showError("Please give the event type a name.");
+    return;
+  }
+
   const body = {
-    slug: $("#et-slug").value.trim(),
+    slug,
     name: $("#et-name").value.trim(),
-    duration_min: Number($("#et-duration").value),
+    duration_min: readDurationValue(),
     buffer_min: Number($("#et-buffer").value) || 0,
     lead_min: Number($("#et-lead").value) || 0,
     horizon_days: Number($("#et-horizon").value) || 25,
