@@ -28,6 +28,7 @@ import { sendError } from "../../lib/groups.mjs";
 import {
   getValidAccessToken as getGoogleToken,
   listGoogleContacts,
+  listGoogleOtherContacts,
 } from "../../lib/google.mjs";
 import {
   getValidMicrosoftAccessToken as getMsToken,
@@ -60,28 +61,36 @@ function withTimeout(promise, ms, label) {
   });
 }
 
+// Returns both a deduplicated contact list AND a per-email interaction
+// score map. The score becomes the frequency-of-use boost in the final
+// merge — addresses you've interacted with through MiCal recently appear
+// at the top of the autocomplete instead of being lost in an alphabetized
+// thousand-line list.
+//
+// Weights are intentional, not magic:
+//   poll_invites      +1 per row  (you invited them to one poll)
+//   group_memberships +5 per row  (you added them to a family/team)
+//   bookings          +2 per row  (a booking is a stronger signal of
+//                                  "this person matters" than just
+//                                  having been on a poll list)
 async function fetchInternalContacts(db, userId) {
-  // Tenant for this user. Anything keyed to a tenant the user owns
-  // contributes to "people I've emailed via MiCal."
   const tRes = await db.execute({
     sql: "SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1",
     args: [userId],
   });
-  if (!tRes.rows[0]) return [];
+  if (!tRes.rows[0]) return { list: [], scoreByEmail: new Map() };
   const tenantId = tRes.rows[0].id;
 
-  // Three lightweight queries — much cheaper than denormalizing. Each
-  // contributes a name + email to the merge. NULL names are fine.
   const [pollRes, groupRes, bookingRes] = await Promise.all([
     db.execute({
-      sql: `SELECT DISTINCT pi.email AS email, NULL AS name
+      sql: `SELECT pi.email AS email, NULL AS name
               FROM poll_invites pi
               JOIN polls p ON p.id = pi.poll_id
              WHERE p.tenant_id = ? AND pi.email IS NOT NULL AND pi.email != ''`,
       args: [tenantId],
     }),
     db.execute({
-      sql: `SELECT DISTINCT u.email AS email, u.display_name AS name
+      sql: `SELECT u.email AS email, u.display_name AS name
               FROM group_memberships gm
               JOIN groups g ON g.id = gm.group_id
               JOIN users u ON u.id = gm.user_id
@@ -89,7 +98,7 @@ async function fetchInternalContacts(db, userId) {
       args: [userId],
     }),
     db.execute({
-      sql: `SELECT DISTINCT b.attendee_email AS email, b.attendee_name AS name
+      sql: `SELECT b.attendee_email AS email, b.attendee_name AS name
               FROM bookings b
              WHERE b.tenant_id = ?
                AND b.attendee_email IS NOT NULL AND b.attendee_email != ''`,
@@ -97,21 +106,27 @@ async function fetchInternalContacts(db, userId) {
     }),
   ]);
 
-  const rows = [...pollRes.rows, ...groupRes.rows, ...bookingRes.rows];
-  // Dedupe on lowercased email; prefer the first non-null name we saw.
-  const map = new Map();
-  for (const r of rows) {
-    const email = String(r.email || "")
-      .trim()
-      .toLowerCase();
-    if (!email) continue;
-    if (!map.has(email)) {
-      map.set(email, { email, name: r.name || null, source: "internal" });
-    } else if (!map.get(email).name && r.name) {
-      map.get(email).name = r.name;
+  const map = new Map(); // email → { email, name, source: 'internal' }
+  const scoreByEmail = new Map();
+  const bump = (email, delta) => {
+    scoreByEmail.set(email, (scoreByEmail.get(email) || 0) + delta);
+  };
+  const accept = (rows, weight) => {
+    for (const r of rows) {
+      const email = String(r.email || "").trim().toLowerCase();
+      if (!email) continue;
+      bump(email, weight);
+      if (!map.has(email)) {
+        map.set(email, { email, name: r.name || null, source: "internal" });
+      } else if (!map.get(email).name && r.name) {
+        map.get(email).name = r.name;
+      }
     }
-  }
-  return [...map.values()];
+  };
+  accept(pollRes.rows, 1);
+  accept(groupRes.rows, 5);
+  accept(bookingRes.rows, 2);
+  return { list: [...map.values()], scoreByEmail };
 }
 
 export default async function handler(req, res) {
@@ -165,12 +180,35 @@ export default async function handler(req, res) {
             PROVIDER_TIMEOUT_MS,
             "google token refresh",
           );
-          const contacts = await withTimeout(
-            listGoogleContacts(token),
-            PROVIDER_TIMEOUT_MS,
-            "google contacts list",
+          // Pull formal contacts + Other contacts in parallel. otherContacts
+          // is where most users' real "people I email" set lives. Failure
+          // of one shouldn't tank the other.
+          const wantsOther = String(acct.scopes || "").includes(
+            "contacts.other.readonly",
           );
-          return contacts.map((c) => ({ ...c, source: "google" }));
+          const [formal, other] = await Promise.all([
+            withTimeout(
+              listGoogleContacts(token),
+              PROVIDER_TIMEOUT_MS,
+              "google contacts list",
+            ),
+            wantsOther
+              ? withTimeout(
+                  listGoogleOtherContacts(token),
+                  PROVIDER_TIMEOUT_MS,
+                  "google other-contacts list",
+                ).catch((err) => {
+                  // Other contacts is best-effort. Log + return empty so
+                  // formal contacts still flow through.
+                  console.error(
+                    "contacts: otherContacts fetch failed",
+                    err.message,
+                  );
+                  return [];
+                })
+              : Promise.resolve([]),
+          ]);
+          return [...formal, ...other].map((c) => ({ ...c, source: "google" }));
         }
         if (provider === "microsoft") {
           if (
@@ -222,13 +260,15 @@ export default async function handler(req, res) {
       }
     });
 
-    const [providerLists, internal] = await Promise.all([
+    const [providerLists, internalResult] = await Promise.all([
       Promise.all(providerFetches),
       fetchInternalContacts(db, user.id).catch((err) => {
         console.error("contacts: internal fetch failed", err.message);
-        return [];
+        return { list: [], scoreByEmail: new Map() };
       }),
     ]);
+    const internal = internalResult.list;
+    const scoreByEmail = internalResult.scoreByEmail;
 
     // Merge with source-priority dedup: google > microsoft > internal.
     // Google contacts most often have the best display names, so they
@@ -245,13 +285,22 @@ export default async function handler(req, res) {
           .trim()
           .toLowerCase();
         if (!email || merged.has(email)) continue;
-        merged.set(email, { name: c.name || null, email, source: c.source });
+        merged.set(email, {
+          name: c.name || null,
+          email,
+          source: c.source,
+          score: scoreByEmail.get(email) || 0,
+        });
       }
     }
 
-    // Sort: contacts that have a display name first (better autocomplete
-    // experience), then alphabetical by name, then by email.
+    // Sort by frequency-of-use score (higher first) so people the user
+    // has actually interacted with through MiCal bubble to the top —
+    // even if Google's provider list returns them deep in an alphabetized
+    // 800-line response. Ties break on: has-name first, then alphabetical
+    // by display name (or email when there's no name).
     const result = [...merged.values()].sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score;
       if (!!a.name !== !!b.name) return a.name ? -1 : 1;
       const an = (a.name || a.email).toLowerCase();
       const bn = (b.name || b.email).toLowerCase();

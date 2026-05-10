@@ -68,10 +68,20 @@ export default async function handler(req, res) {
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events",
-    // Contacts autocomplete for the poll-invite / group-invite UIs. Each
-    // contact is fetched on-demand and held in the browser session only —
-    // we never persist Google contact data on our servers.
+    // Contacts autocomplete for the poll-invite / group-invite UIs.
+    // Two scopes because Google splits this in half:
+    //   - contacts.readonly       → formal "Contacts" (address book entries)
+    //   - contacts.other.readonly → "Other contacts" (auto-collected from
+    //                               Gmail interactions; this is where the
+    //                               long tail of "people you email" lives)
+    // Most users' actual contacts list is dominated by the second bucket;
+    // without it the autocomplete feels broken because spouses, frequent
+    // collaborators, etc. are missing. Both are sensitive (not restricted),
+    // so same verification ceremony either way.
+    // Each contact is fetched on-demand and held in the browser session
+    // only — we never persist Google contact data on our servers.
     "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/contacts.other.readonly",
   ];
 
   const authUrl = new URL(GOOGLE_AUTH_URL);
