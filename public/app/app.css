@@ -1801,6 +1801,146 @@ textarea {
   background: var(--flow-teal);
 }
 
+/* Contact-picker chip input + suggestions popup. Used in the poll-create
+   "Send invitations to" field; designed to be reusable for group invites
+   and other multi-recipient surfaces later. */
+.contact-picker {
+  position: relative;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  padding: 6px 8px 2px;
+  background: var(--white);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 40px;
+}
+
+.contact-picker:focus-within {
+  border-color: var(--flow-teal);
+}
+
+.contact-picker-chips {
+  display: contents;
+}
+
+.contact-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 194, 168, 0.12);
+  color: var(--charcoal);
+  border-radius: 999px;
+  padding: 2px 8px 2px 12px;
+  font-size: 0.85rem;
+  max-width: 100%;
+}
+
+.contact-chip-label {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.contact-chip-email {
+  color: var(--stone);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.contact-chip-remove {
+  background: none;
+  border: none;
+  color: var(--stone);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.contact-chip-remove:hover {
+  color: var(--danger);
+}
+
+.contact-picker-input {
+  border: none;
+  outline: none;
+  padding: 4px 4px;
+  font: inherit;
+  flex: 1;
+  min-width: 160px;
+  background: transparent;
+}
+
+.contact-picker-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  z-index: 50;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.contact-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--charcoal);
+}
+
+.contact-suggestion:hover {
+  background: var(--cloud);
+}
+
+.contact-suggestion-name {
+  flex: 1;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-suggestion-email {
+  color: var(--stone);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.contact-suggestion-source {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--stone);
+  background: var(--cloud);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.contact-suggestion-loading {
+  padding: 12px;
+  text-align: center;
+  color: var(--stone);
+  font-size: 0.85rem;
+}
+
 /* Type picker (Create Group, future tile-style choices) */
 .type-picker {
   display: grid;

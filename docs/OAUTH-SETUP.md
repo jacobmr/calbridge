@@ -7,6 +7,7 @@ in each provider's developer console, and what to do about the
 "unverified app" warning at production launch.
 
 The scope lists live in the runtime code, not in the consoles:
+
 - `api/oauth/google/init.mjs` — Google scope array
 - `api/oauth/microsoft/init.mjs` — Microsoft scope array
 
@@ -21,13 +22,13 @@ verification rules described below.
 
 ### Google
 
-| Scope | Why we need it |
-|---|---|
-| `openid` | Standard OIDC identity assertion. |
-| `https://www.googleapis.com/auth/userinfo.email` | Identify the signed-in user by email. |
-| `https://www.googleapis.com/auth/userinfo.profile` | Display name + avatar in the dashboard. |
+| Scope                                               | Why we need it                                                                                                             |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `openid`                                            | Standard OIDC identity assertion.                                                                                          |
+| `https://www.googleapis.com/auth/userinfo.email`    | Identify the signed-in user by email.                                                                                      |
+| `https://www.googleapis.com/auth/userinfo.profile`  | Display name + avatar in the dashboard.                                                                                    |
 | `https://www.googleapis.com/auth/calendar.readonly` | List calendars and read events for the merged Schedule view, sync flows, poll free/busy pre-check, and group availability. |
-| `https://www.googleapis.com/auth/calendar.events` | Create / update / delete events when a booking comes in or a poll winner is scheduled. Also writes the sync-target events. |
+| `https://www.googleapis.com/auth/calendar.events`   | Create / update / delete events when a booking comes in or a poll winner is scheduled. Also writes the sync-target events. |
 
 Both calendar scopes are classified by Google as **sensitive** (the
 middle tier, between non-sensitive identity scopes and the heaviest
@@ -41,14 +42,14 @@ calendars" phrasing on the consent screen.
 
 ### Microsoft
 
-| Scope | Why we need it |
-|---|---|
-| `openid` | OIDC identity assertion. |
-| `email` | Identify the signed-in user by email. |
-| `profile` | Display name. |
-| `offline_access` | Required to receive a refresh token (Microsoft equivalent of Google's `access_type=offline`). |
-| `Calendars.Read` | Same as Google's `calendar.readonly`. |
-| `Calendars.ReadWrite` | Same as Google's `calendar.events`. |
+| Scope                 | Why we need it                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `openid`              | OIDC identity assertion.                                                                      |
+| `email`               | Identify the signed-in user by email.                                                         |
+| `profile`             | Display name.                                                                                 |
+| `offline_access`      | Required to receive a refresh token (Microsoft equivalent of Google's `access_type=offline`). |
+| `Calendars.Read`      | Same as Google's `calendar.readonly`.                                                         |
+| `Calendars.ReadWrite` | Same as Google's `calendar.events`.                                                           |
 
 Microsoft classifies `Calendars.ReadWrite` as a **delegated permission
 requiring admin consent in some organizational tenants**. For personal
@@ -115,6 +116,7 @@ The same client ID + secret end up in Vercel as `GOOGLE_CLIENT_ID` and
 **APIs & Services → OAuth consent screen**
 
 States:
+
 - **Testing**: only test users (allowlisted by email) can OAuth at all.
   Cap of 100 test users. Sensitive scopes can be requested without
   verification. Tokens expire after 7 days, forcing re-auth.
@@ -143,10 +145,11 @@ calendar.events), this requires:
   ~3 min if covering all three sensitive scopes in one recording)
 
 There is **no CASA security assessment** in our path. CASA is only
-required for *restricted* scopes (Gmail, Drive, Chat), and we don't
+required for _restricted_ scopes (Gmail, Drive, Chat), and we don't
 use any of those.
 
 Without verification:
+
 - The "unverified app" screen scares away most non-technical users
 - We hit the 100-tokens-per-week cap once we have any volume
 
@@ -161,11 +164,11 @@ Google sorts scopes into tiers, and each tier has a different
 verification ceremony. As shown in the Cloud Console's Data Access
 view, the classification for our scope set is:
 
-| Tier | What we use here | What verification requires |
-|---|---|---|
-| Non-sensitive (`openid`, `userinfo.email`, `userinfo.profile`) | Identity scopes | Nothing |
-| Sensitive (`contacts.readonly`, `calendar.readonly`, `calendar.events`) | Contacts + both calendar scopes | Domain verification (Search Console TXT record on `mical.net`) + privacy policy & ToS reachable on the same domain + an unlisted YouTube demo |
-| Restricted (none for us) | Reserved for Gmail/Drive/Chat scopes; we don't use any | All of the sensitive bar plus a CASA Tier 2/3 security assessment |
+| Tier                                                                    | What we use here                                       | What verification requires                                                                                                                    |
+| ----------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Non-sensitive (`openid`, `userinfo.email`, `userinfo.profile`)          | Identity scopes                                        | Nothing                                                                                                                                       |
+| Sensitive (`contacts.readonly`, `calendar.readonly`, `calendar.events`) | Contacts + both calendar scopes                        | Domain verification (Search Console TXT record on `mical.net`) + privacy policy & ToS reachable on the same domain + an unlisted YouTube demo |
+| Restricted (none for us)                                                | Reserved for Gmail/Drive/Chat scopes; we don't use any | All of the sensitive bar plus a CASA Tier 2/3 security assessment                                                                             |
 
 We sit entirely in the sensitive tier. **There is no CASA assessment
 in our path.** The "scary" verification cost (~$500-1500 + months of
@@ -188,17 +191,18 @@ sanitized contacts and events — reviewers see whatever's on screen.
 in code first, ship to prod, then record on prod. Don't film a
 pre-feature mockup — that's a verification-rejection trigger.
 
-| Time  | What's on screen | Narration |
-|---|---|---|
-| 0:00  | Browser at mical.net, signed-in dashboard, URL bar visible | "MiCal is a calendar coordination tool at mical.net. From here, users send meeting polls and event-type invitations." |
-| 0:10  | Click "New poll" → create-poll modal opens; scroll to "Send invitations to" field | "When sending invitations, the user types email addresses one at a time." |
-| 0:25  | Focus the field, type two letters (e.g. "ja") | "We use `contacts.readonly` to suggest matching contacts from the user's Google address book…" |
-| 0:35  | Suggestion dropdown appears with 2-3 contacts whose names start with "ja" | "…showing matching names and email addresses inline." |
-| 0:45  | Click one to add as a recipient chip | "User picks one to add to the invitation list." |
-| 0:55  | Show the same autocomplete on a group-invite or event-type form | "The same autocomplete is used everywhere the user is sending email — group invitations, booking-page guests, and so on." |
-| 1:10  | Optional final shot — privacy policy line about contacts handling | "Contacts are read into the user's session for autocomplete only — not stored on MiCal servers, not shared with third parties, not used to train models." |
+| Time | What's on screen                                                                  | Narration                                                                                                                                                 |
+| ---- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0:00 | Browser at mical.net, signed-in dashboard, URL bar visible                        | "MiCal is a calendar coordination tool at mical.net. From here, users send meeting polls and event-type invitations."                                     |
+| 0:10 | Click "New poll" → create-poll modal opens; scroll to "Send invitations to" field | "When sending invitations, the user types email addresses one at a time."                                                                                 |
+| 0:25 | Focus the field, type two letters (e.g. "ja")                                     | "We use `contacts.readonly` to suggest matching contacts from the user's Google address book…"                                                            |
+| 0:35 | Suggestion dropdown appears with 2-3 contacts whose names start with "ja"         | "…showing matching names and email addresses inline."                                                                                                     |
+| 0:45 | Click one to add as a recipient chip                                              | "User picks one to add to the invitation list."                                                                                                           |
+| 0:55 | Show the same autocomplete on a group-invite or event-type form                   | "The same autocomplete is used everywhere the user is sending email — group invitations, booking-page guests, and so on."                                 |
+| 1:10 | Optional final shot — privacy policy line about contacts handling                 | "Contacts are read into the user's session for autocomplete only — not stored on MiCal servers, not shared with third parties, not used to train models." |
 
 Rejection-avoiding details:
+
 - **1080p+.** Lower will get rejected for "can't read text."
 - **Slow, deliberate.** Don't fast-forward — reviewers want to see
   the actual interaction.
@@ -248,6 +252,7 @@ The application (client) ID and the client secret (created under
 Delegated permissions**
 
 Add each of these:
+
 - `openid`
 - `email`
 - `profile`
@@ -287,18 +292,27 @@ once on their next sign-in (Microsoft) thanks to
 `include_granted_scopes=true` and the `offline_access` scope we
 already request.
 
-Google data-handling justification used when declaring:
+Google data-handling justification — current implementation, current wording:
 
 > MiCal uses contacts to auto-suggest email addresses when the user
 > is sending invitations — for meeting polls, family/team group
-> invites, and booking-page recipients. Contacts are read into the
-> user's MiCal session for autocomplete only; they are not stored on
-> MiCal servers beyond an in-memory cache, never shared with third
-> parties, and never used to train models.
+> invites, and booking-page recipients. Contacts are fetched fresh
+> from Google's People API on demand (one request per time the user
+> opens the recipient picker) and returned to the user's browser for
+> client-side autocomplete filtering. MiCal servers do not persist
+> contact data; nothing is shared with third parties; nothing is used
+> for model training.
 
-If our actual implementation ends up caching contacts in the DB for
-performance, this wording needs to be revised before verification —
-mismatched wording is one of the more common verification rejections.
+This wording is correct as of the v1 implementation: `api/contacts/index.mjs`
+fetches live from Google People API + Microsoft Graph on each call, merges
+with already-known MiCal-internal addresses (poll_invites,
+group_memberships, booking attendees — data we already hold for the
+core product), and returns the combined list. No new contact data is
+written to the MiCal DB.
+
+If we ever add server-side caching of provider contacts (e.g. a nightly
+sync into a `contacts` table for offline autocomplete), this wording
+needs to be revised before re-verification.
 
 ### Calendar (full) scope
 
@@ -318,7 +332,7 @@ users differently:
 
 - **Google**: with `include_granted_scopes=true` (which we set in
   `api/oauth/google/init.mjs`), Google adds the new scopes to the
-  existing token grant silently — no re-consent screen — *as long as*
+  existing token grant silently — no re-consent screen — _as long as_
   the new scopes aren't in a more-sensitive category than the old
   ones. Adding sensitive scopes does force re-consent.
 - **Microsoft**: if the requested scope list differs from the granted
@@ -335,6 +349,7 @@ handlers honor that flag and set `prompt=consent`.
 ## Quick verification of "is OAuth working right now?"
 
 Local environment:
+
 ```
 eval "$(sops -d /data/dev/inventory/secrets/calbridge.enc.env | sed 's/^/export /')"
 vercel dev

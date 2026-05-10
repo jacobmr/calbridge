@@ -69,6 +69,10 @@ export default async function handler(req, res) {
     "offline_access",
     "Calendars.Read",
     "Calendars.ReadWrite",
+    // Contacts autocomplete (parity with Google contacts.readonly).
+    // Fetched on-demand into the browser session; not persisted on our
+    // servers.
+    "Contacts.Read",
   ];
 
   const authUrl = new URL(MICROSOFT_AUTH_URL);

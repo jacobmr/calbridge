@@ -68,6 +68,10 @@ export default async function handler(req, res) {
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events",
+    // Contacts autocomplete for the poll-invite / group-invite UIs. Each
+    // contact is fetched on-demand and held in the browser session only —
+    // we never persist Google contact data on our servers.
+    "https://www.googleapis.com/auth/contacts.readonly",
   ];
 
   const authUrl = new URL(GOOGLE_AUTH_URL);

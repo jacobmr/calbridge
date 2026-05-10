@@ -3380,15 +3380,46 @@ const POLL_PICKER_HORIZON_DAYS = 14;
 const POLL_PICKER_WEEKDAYS_ONLY = true;
 
 // State for the open create-poll dialog. Held in module scope (one dialog
-// at a time) rather than threaded through every helper. selectedSlots is a
-// Set of start_ms numbers — easier to flip on click than chasing DOM state.
+// at a time) rather than threaded through every helper. selected is a Set
+// of start_ms numbers; invitees is the list of email chips the organizer
+// has added; contacts is the cached autocomplete source for this session.
 let pickerState = null;
+
+// Module-level cache for contact suggestions. Populated lazily on the
+// first poll-create modal open of the session. Never persisted; cleared
+// on a hard refresh.
+let contactsCache = null;
+let contactsLoadingPromise = null;
+
+async function loadContactsOnce() {
+  if (contactsCache) return contactsCache;
+  if (contactsLoadingPromise) return contactsLoadingPromise;
+  contactsLoadingPromise = (async () => {
+    try {
+      const data = await api("/api/contacts");
+      contactsCache = data.contacts || [];
+    } catch {
+      // Soft failure — autocomplete just doesn't suggest anything. The
+      // organizer can still type emails manually.
+      contactsCache = [];
+    } finally {
+      contactsLoadingPromise = null;
+    }
+    return contactsCache;
+  })();
+  return contactsLoadingPromise;
+}
 
 function openCreatePollDialog() {
   $(".sidebar")?.classList.remove("open");
   $(".sidebar-overlay")?.classList.remove("open");
 
-  pickerState = { busy: [], selected: new Set(), durationMin: 30 };
+  pickerState = {
+    busy: [],
+    selected: new Set(),
+    durationMin: 30,
+    invitees: [], // { email, name? }
+  };
 
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay open";
@@ -3434,10 +3465,14 @@ function openCreatePollDialog() {
           </div>
         </div>
         <div class="form-group">
-          <label for="cp-invitees">Send invitations to <span class="optional">(optional)</span></label>
-          <textarea id="cp-invitees" rows="2" placeholder="alice@example.com, bob@example.com"></textarea>
+          <label for="cp-invitees-input">Send invitations to <span class="optional">(optional)</span></label>
+          <div class="contact-picker" id="cp-invitees">
+            <div class="contact-picker-chips" id="cp-invitees-chips"></div>
+            <input type="text" id="cp-invitees-input" class="contact-picker-input" placeholder="Type a name or email…" autocomplete="off">
+            <div class="contact-picker-suggestions" id="cp-invitees-suggestions" hidden></div>
+          </div>
           <p class="muted" style="font-size:0.85rem;margin:4px 0 0">
-            Comma or newline-separated. Recipients get an email with the poll link. You'll also get the link to share manually.
+            Recipients get an email with the poll link. You'll also get the link to share manually.
           </p>
         </div>
       </form>
@@ -3480,6 +3515,9 @@ function openCreatePollDialog() {
   // returns. Don't block the modal — the grid shows a loading state.
   loadHostBusyForPicker(overlay).then(() => renderSlotGrid(overlay));
 
+  // Wire up the contacts autocomplete on the invitees chip input.
+  wireInviteesPicker(overlay);
+
   overlay
     .querySelector("#create-poll-form")
     .addEventListener("submit", async (e) => {
@@ -3492,11 +3530,11 @@ function openCreatePollDialog() {
       const description = overlay.querySelector("#cp-description").value.trim();
       const duration_min = Number(overlay.querySelector("#cp-duration").value);
       const location_text = overlay.querySelector("#cp-location").value.trim();
-      const inviteRaw = overlay.querySelector("#cp-invitees").value;
-      const invite_emails = inviteRaw
-        .split(/[\s,;]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
+      // Sweep any free-text the user typed but didn't add as a chip yet —
+      // common case is they typed an email, hit Tab, then submit. Without
+      // this, that email would silently get dropped.
+      commitPendingInviteText(overlay);
+      const invite_emails = pickerState.invitees.map((i) => i.email);
 
       const options = [...pickerState.selected]
         .sort((a, b) => a - b)
@@ -3650,6 +3688,215 @@ function renderSlotGrid(overlay) {
 function updateSelectedCount(overlay) {
   const n = pickerState.selected.size;
   overlay.querySelector("#cp-selected-count").textContent = `(${n} picked)`;
+}
+
+// ─── Contacts autocomplete (poll-create invitees chip input) ───
+//
+// On modal open: kick off /api/contacts in the background. While loading,
+// the suggestions popup says "loading"; once it resolves we filter the
+// cached list client-side on each keystroke. The user's existing chips
+// drop out of the suggestion list so they can't double-add.
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function wireInviteesPicker(overlay) {
+  const input = overlay.querySelector("#cp-invitees-input");
+  const suggBox = overlay.querySelector("#cp-invitees-suggestions");
+
+  // Prefetch in the background — don't block the modal render.
+  loadContactsOnce().then(() => {
+    // If the user already focused/typed before the fetch returned, rerun
+    // the suggestion render so we don't leave them staring at an empty list.
+    if (document.activeElement === input) renderSuggestions(overlay);
+  });
+
+  // Render the user's current chips. (Empty initially; this is just
+  // bootstrapping in case we ever pre-populate.)
+  renderInviteeChips(overlay);
+
+  input.addEventListener("input", () => renderSuggestions(overlay));
+  input.addEventListener("focus", () => renderSuggestions(overlay));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+      // Tab is the gentlest "commit" affordance — keeps the user's
+      // existing tab order working if they intend to move on, but
+      // captures the value first.
+      const val = input.value.trim().replace(/,$/, "");
+      if (val) {
+        e.preventDefault();
+        addInvitee(overlay, val);
+      }
+    } else if (e.key === "Backspace" && input.value === "") {
+      // Backspace on an empty input removes the last chip — standard
+      // chip-input affordance.
+      if (pickerState.invitees.length > 0) {
+        pickerState.invitees.pop();
+        renderInviteeChips(overlay);
+      }
+    } else if (e.key === "Escape") {
+      hide(suggBox);
+    }
+  });
+
+  // Click-outside closes the suggestions popup.
+  document.addEventListener("mousedown", (e) => {
+    if (!overlay.contains(e.target)) return;
+    if (!overlay.querySelector("#cp-invitees").contains(e.target)) {
+      hide(suggBox);
+    }
+  });
+}
+
+function renderInviteeChips(overlay) {
+  const chipsEl = overlay.querySelector("#cp-invitees-chips");
+  chipsEl.replaceChildren();
+  for (const inv of pickerState.invitees) {
+    const chip = document.createElement("span");
+    chip.className = "contact-chip";
+    // Show name when we have one, email always (small). createElement +
+    // textContent throughout so a contact named e.g. `<script>...` from
+    // Google can't inject markup.
+    const label = document.createElement("span");
+    label.className = "contact-chip-label";
+    label.textContent = inv.name ? `${inv.name}` : inv.email;
+    chip.appendChild(label);
+    if (inv.name) {
+      const sub = document.createElement("span");
+      sub.className = "contact-chip-email";
+      sub.textContent = inv.email;
+      chip.appendChild(sub);
+    }
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "contact-chip-remove";
+    x.setAttribute("aria-label", `Remove ${inv.email}`);
+    x.textContent = "×";
+    x.addEventListener("click", () => {
+      pickerState.invitees = pickerState.invitees.filter(
+        (i) => i.email !== inv.email,
+      );
+      renderInviteeChips(overlay);
+    });
+    chip.appendChild(x);
+    chipsEl.appendChild(chip);
+  }
+}
+
+function addInvitee(overlay, raw) {
+  const input = overlay.querySelector("#cp-invitees-input");
+  // Accept either "Name <email>" or just "email" (or a name match from
+  // the suggestions list, which calls this with the email directly).
+  let name = null;
+  let email = raw.trim();
+  const m = email.match(/^(.+?)\s*<([^>]+)>$/);
+  if (m) {
+    name = m[1].trim();
+    email = m[2].trim();
+  }
+  email = email.toLowerCase();
+  if (!EMAIL_RE.test(email)) {
+    showError(`"${raw}" doesn't look like an email address.`);
+    return;
+  }
+  if (pickerState.invitees.some((i) => i.email === email)) {
+    input.value = "";
+    renderSuggestions(overlay);
+    return;
+  }
+  pickerState.invitees.push({ email, name });
+  input.value = "";
+  renderInviteeChips(overlay);
+  renderSuggestions(overlay);
+}
+
+function commitPendingInviteText(overlay) {
+  const input = overlay.querySelector("#cp-invitees-input");
+  const val = input.value.trim();
+  if (val) addInvitee(overlay, val);
+}
+
+function renderSuggestions(overlay) {
+  const input = overlay.querySelector("#cp-invitees-input");
+  const suggBox = overlay.querySelector("#cp-invitees-suggestions");
+  const q = input.value.trim().toLowerCase();
+
+  // If the user hasn't typed anything, still show a small primer of their
+  // most-recent / most-relevant contacts so the field reveals itself as
+  // an autocomplete (not just a text input).
+  const all = contactsCache || [];
+  const alreadyPicked = new Set(pickerState.invitees.map((i) => i.email));
+
+  let candidates;
+  if (!q) {
+    candidates = all.filter((c) => !alreadyPicked.has(c.email)).slice(0, 6);
+  } else {
+    candidates = all
+      .filter((c) => {
+        if (alreadyPicked.has(c.email)) return false;
+        const name = (c.name || "").toLowerCase();
+        return name.includes(q) || c.email.toLowerCase().includes(q);
+      })
+      .slice(0, 8);
+  }
+
+  suggBox.replaceChildren();
+  if (candidates.length === 0) {
+    // Still indicate the autocomplete is "alive" while loading.
+    if (contactsCache == null && q === "") {
+      const loading = document.createElement("div");
+      loading.className = "contact-suggestion-loading";
+      loading.textContent = "Loading contacts…";
+      suggBox.appendChild(loading);
+      show(suggBox);
+      return;
+    }
+    hide(suggBox);
+    return;
+  }
+  for (const c of candidates) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "contact-suggestion";
+    const label = document.createElement("span");
+    label.className = "contact-suggestion-name";
+    label.textContent = c.name || c.email;
+    row.appendChild(label);
+    if (c.name) {
+      const sub = document.createElement("span");
+      sub.className = "contact-suggestion-email";
+      sub.textContent = c.email;
+      row.appendChild(sub);
+    }
+    // Tiny badge showing where the suggestion came from. Helpful for the
+    // demo video — reviewer sees "google" / "microsoft" / "internal" and
+    // knows the contacts.readonly scope is doing actual work.
+    if (c.source) {
+      const src = document.createElement("span");
+      src.className = "contact-suggestion-source";
+      src.textContent = c.source;
+      row.appendChild(src);
+    }
+    // mousedown rather than click — click fires after blur which would
+    // close the popup before the handler runs.
+    row.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      addInvitee(overlay, c.name ? `${c.name} <${c.email}>` : c.email);
+      input.focus();
+    });
+    suggBox.appendChild(row);
+  }
+  show(suggBox);
+}
+
+// ─── Hide/show helpers also used by the suggestions popup ───
+//
+// We already have show/hide for poll.js (public page), but the dashboard
+// uses [hidden] attribute toggling everywhere. Reuse the same pattern.
+function hide(el) {
+  if (el) el.hidden = true;
+}
+function show(el) {
+  if (el) el.hidden = false;
 }
 
 // Detail view: tally grid (rows = respondents, columns = options) + a
