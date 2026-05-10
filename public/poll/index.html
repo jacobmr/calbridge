@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meeting Poll — MiCal</title>
+    <link rel="stylesheet" href="/book/book.css" />
+    <link rel="stylesheet" href="/poll/poll.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌉</text></svg>"
+    />
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-header">
+        <a href="/" class="logo"
+          ><img src="/logo.svg" alt="" /> Mi<span>Cal</span></a
+        >
+      </header>
+
+      <main class="booking-container">
+        <div id="loading" class="state-loading">
+          <div class="spinner"></div>
+          <p>Loading poll…</p>
+        </div>
+
+        <div id="error" class="state-error hidden">
+          <h2>Something went wrong</h2>
+          <p id="error-message">Unable to load this poll.</p>
+        </div>
+
+        <div id="poll-card" class="booking-card hidden">
+          <aside class="event-sidebar">
+            <div class="event-host" id="organizer-name">MiCal</div>
+            <h1 id="poll-title" class="event-title">Poll</h1>
+            <div class="event-meta">
+              <span class="meta-item" id="poll-duration">—</span>
+              <span class="meta-item hidden" id="poll-location"></span>
+            </div>
+            <p id="poll-desc" class="event-desc hidden"></p>
+
+            <!-- Pre-check pitch — visible only when the viewer is anonymous.
+                 Stage 3 will swap this out for the busy-pill rendering. -->
+            <div id="signin-pitch" class="signin-pitch hidden">
+              <p class="muted">
+                Sign in so we can pre-check which times work for you.
+              </p>
+              <a class="btn btn-secondary btn-block" id="signin-google" href="#"
+                >Sign in with Google</a
+              >
+              <a
+                class="btn btn-secondary btn-block"
+                id="signin-microsoft"
+                href="#"
+                style="margin-top: 6px"
+                >Sign in with Microsoft</a
+              >
+            </div>
+
+            <div id="signed-in-as" class="signed-in-as hidden"></div>
+          </aside>
+
+          <div class="booking-main">
+            <div id="step-vote" class="step">
+              <h2 class="step-title">Pick all the times that work</h2>
+              <p
+                id="status-banner"
+                class="tz-banner hidden"
+                style="margin-bottom: 12px"
+              ></p>
+              <p
+                id="my-response-banner"
+                class="tz-banner hidden"
+                style="margin-bottom: 12px"
+              ></p>
+
+              <form id="vote-form">
+                <div id="poll-options" class="poll-options"></div>
+
+                <div
+                  id="anon-fields"
+                  class="form-group anon-fields"
+                  style="margin-top: 16px"
+                >
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="name">Name *</label>
+                      <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        required
+                        placeholder="Jane Doe"
+                        autocomplete="name"
+                      />
+                    </div>
+                    <div class="form-group" id="email-group">
+                      <label for="email"
+                        >Email
+                        <span id="email-required" class="hidden">*</span></label
+                      >
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="jane@example.com"
+                        autocomplete="email"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="comment"
+                    >Comment <span class="optional">(optional)</span></label
+                  >
+                  <textarea
+                    id="comment"
+                    name="comment"
+                    rows="2"
+                    placeholder="Anything the organizer should know"
+                  ></textarea>
+                </div>
+
+                <button
+                  type="submit"
+                  class="btn btn-primary btn-submit"
+                  id="submit-btn"
+                >
+                  Submit response
+                </button>
+                <p id="form-error" class="form-error hidden"></p>
+              </form>
+            </div>
+
+            <div id="step-confirm" class="step hidden">
+              <div class="confirm-card">
+                <div class="confirm-icon" aria-hidden="true">
+                  <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9 12l2 2 4-4" />
+                  </svg>
+                </div>
+                <h2 class="confirm-title">Thanks — your response is in.</h2>
+                <p class="confirm-subtitle">
+                  We'll email you when the organizer picks a time.
+                </p>
+                <p class="muted" id="confirm-edit-hint">
+                  Made a mistake?
+                  <a href="#" id="edit-response-link">Update your response</a>.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="/poll/poll.js"></script>
+  </body>
+</html>

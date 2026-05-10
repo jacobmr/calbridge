@@ -1,0 +1,105 @@
+/* Poll-specific overrides on top of /book/book.css. */
+
+.poll-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.poll-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: var(--white);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.poll-option:hover {
+  border-color: var(--flow-teal);
+}
+
+.poll-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.poll-option-when {
+  flex: 1;
+  font-weight: 500;
+}
+
+.poll-option.is-busy {
+  background: rgba(229, 62, 62, 0.04);
+}
+
+.poll-option.is-busy .poll-option-when {
+  color: var(--stone);
+}
+
+.poll-option.is-scheduled {
+  background: rgba(56, 161, 105, 0.08);
+  border-color: var(--success);
+}
+
+.busy-pill,
+.free-pill,
+.scheduled-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.busy-pill {
+  background: rgba(229, 62, 62, 0.1);
+  color: var(--danger);
+}
+
+.free-pill {
+  background: rgba(56, 161, 105, 0.12);
+  color: var(--success);
+}
+
+.scheduled-pill {
+  background: var(--success);
+  color: var(--white);
+}
+
+/* Sidebar pre-check pitch */
+.signin-pitch {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--cloud);
+  border-radius: 10px;
+}
+
+.signin-pitch .muted {
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.btn-block {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.signed-in-as {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: rgba(0, 194, 168, 0.08);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  color: var(--charcoal);
+}

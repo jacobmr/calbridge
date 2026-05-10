@@ -9,6 +9,10 @@
       "destination": "/book/?host=:host&event=:event"
     },
     {
+      "source": "/poll/:token",
+      "destination": "/poll/?token=:token"
+    },
+    {
       "source": "/api/groups/:id/feed.ics",
       "destination": "/api/groups/:id/feed"
     }
