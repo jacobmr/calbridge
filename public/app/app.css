@@ -1582,6 +1582,131 @@ textarea {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
 }
 
+/* Welcome modal — first-run onboarding */
+.welcome-dialog {
+  max-width: 520px;
+  padding: 40px 36px 32px;
+  text-align: center;
+  align-items: center;
+}
+
+.welcome-illust {
+  margin-bottom: 8px;
+}
+
+.welcome-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+  color: var(--charcoal);
+}
+
+.welcome-lead {
+  color: var(--stone);
+  margin-bottom: 24px;
+  font-size: 0.98rem;
+}
+
+.welcome-steps {
+  list-style: none;
+  counter-reset: welcome;
+  padding: 0;
+  margin: 0 0 28px;
+  text-align: left;
+  max-width: 420px;
+  width: 100%;
+}
+
+.welcome-steps li {
+  counter-increment: welcome;
+  position: relative;
+  padding: 10px 0 10px 40px;
+  font-size: 0.95rem;
+  color: var(--charcoal);
+}
+
+.welcome-steps li::before {
+  content: counter(welcome);
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 28px;
+  height: 28px;
+  background: rgba(0, 194, 168, 0.1);
+  color: var(--bridge-blue);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.welcome-steps li strong {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.welcome-steps li .muted {
+  font-size: 0.85rem;
+  color: var(--stone);
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* "What's next" guidance card on Overview */
+.whats-next-card {
+  border-left: 3px solid var(--flow-teal);
+}
+
+.whats-next-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.whats-next-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--cloud);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.whats-next-illust {
+  margin-bottom: 4px;
+}
+
+.whats-next-item h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.whats-next-item p {
+  font-size: 0.88rem;
+  color: var(--stone);
+  line-height: 1.5;
+  margin: 0;
+  flex: 1;
+}
+
+.whats-next-item .btn {
+  margin-top: 4px;
+}
+
 .modal-header {
   display: flex;
   align-items: center;

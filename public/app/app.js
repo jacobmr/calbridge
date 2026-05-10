@@ -1247,6 +1247,7 @@ async function loadOverview() {
     renderUserInfo();
     applyNavVisibility(overview?.counts);
     renderOverview(overview);
+    maybeShowWelcomeModal(overview?.counts);
   } catch (err) {
     if (err.message !== "unauthorized") {
       container.innerHTML = `<div class="error-banner">Failed to load: ${escapeHtml(err.message)}</div>`;
@@ -1465,13 +1466,98 @@ function renderOverview(data) {
       `<button class="btn btn-secondary" onclick="showTab('event-types')">${c.eventTypes === 0 ? "Set up booking page" : "New event type"}</button>`,
     );
 
+  // "What's next" guidance card. Shows once the user has connected something
+  // but hasn't accumulated much else — disappears as they fill the boxes.
+  // Designed as the secondary onboarding step after the welcome modal.
+  const whatsNextHtml = renderWhatsNextCard(c);
+
   container.innerHTML = `
     <div class="stats-grid">${statusCards}</div>
     ${attentionHtml}
+    ${whatsNextHtml}
     ${activityHtml}
     <div class="card">
       <div class="card-header"><div class="card-title">Quick actions</div></div>
       <div class="quick-actions">${quickActions.join("")}</div>
+    </div>
+  `;
+}
+
+// Returns the "What's next" guidance card, or "" if the user has progressed
+// far enough that the card adds noise. The thresholds are deliberately
+// permissive — somebody with 1 calendar and 3 sync flows but no group is
+// still a candidate for the family pitch.
+function renderWhatsNextCard(c) {
+  if (!c || c.calendars === 0) return ""; // welcome modal or empty hero handles this
+  const hasSyncFlows = c.syncFlows > 0;
+  const hasGroup = (groups || []).length > 0;
+  const hasEventTypes = c.eventTypes > 0;
+  const moreThanOneCal = c.calendars > 1;
+
+  // If the user already has a group AND sync flows AND event types, they're
+  // past the "what's next" phase — go quiet.
+  const itemsCount = [hasSyncFlows, hasGroup, hasEventTypes].filter(
+    Boolean,
+  ).length;
+  if (itemsCount >= 2) return "";
+
+  // Otherwise, surface the missing-piece options. Each links to its tab.
+  const cards = [];
+  if (!moreThanOneCal) {
+    cards.push({
+      illust: "calendar",
+      title: "Connect another calendar",
+      body: "Got Outlook on top of Google? Or a school ICS feed? Add them so MiCal can see the whole picture.",
+      cta: "Add calendar",
+      onclick: "showTab('calendars')",
+    });
+  }
+  if (!hasSyncFlows) {
+    cards.push({
+      illust: "sync",
+      title: "Bridge two calendars",
+      body: 'Copy events from one calendar to another, with rules. "Push my Outlook events to my personal Google as busy blocks."',
+      cta: "Create a sync flow",
+      onclick: "showTab('sync-flows')",
+    });
+  }
+  if (!hasGroup) {
+    cards.push({
+      illust: "home",
+      title: "Share with your family or team",
+      body: 'See everyone\'s schedule in one place — across providers. Answer "are we free Saturday?" with confidence.',
+      cta: "Create a group",
+      onclick: "openCreateGroupDialog()",
+    });
+  }
+  if (!hasEventTypes) {
+    cards.push({
+      illust: "list",
+      title: "Set up a booking page",
+      body: "Share a link. Clients pick a time. It lands on your calendar — no account needed for them.",
+      cta: "Set up event type",
+      onclick: "showTab('event-types')",
+    });
+  }
+  if (cards.length === 0) return "";
+
+  return `
+    <div class="card whats-next-card">
+      <div class="card-header"><div class="card-title">What's next?</div></div>
+      <div class="whats-next-grid">
+        ${cards
+          .map(
+            (c) => `
+          <article class="whats-next-item">
+            <div class="whats-next-illust">${illustration(c.illust, 56)}</div>
+            <h4>${escapeHtml(c.title)}</h4>
+            <p>${escapeHtml(c.body)}</p>
+            <button class="btn btn-secondary btn-sm" onclick="${c.onclick}">${escapeHtml(c.cta)}</button>
+          </article>
+        `,
+          )
+          .join("")}
+      </div>
     </div>
   `;
 }
@@ -2779,6 +2865,119 @@ function toggleSidebar() {
   $(".sidebar-overlay").classList.toggle("open");
 }
 
+// ─── Onboarding ───
+//
+// Three pieces, each minimal:
+//
+//  1. Welcome modal — shown once for users who land on the dashboard with
+//     zero calendars and haven't dismissed it before. Sets expectations,
+//     ends with the connect-a-calendar action. Dismissal is tracked in
+//     localStorage; we don't burn a DB column on a one-time UI nudge.
+//
+//  2. Post-OAuth toast — when the dashboard loads with ?connected=1
+//     (or ?connected=google|microsoft), show a celebration toast and
+//     strip the param from the URL so a refresh doesn't replay it.
+//
+//  3. "What's next" card on Overview — shown when the user has at least
+//     one calendar but is missing the obvious follow-ups. Disappears as
+//     state advances. Belongs to renderOverview, not this section.
+
+const WELCOME_DISMISSED_KEY = "mical_welcome_dismissed";
+
+function maybeShowWelcomeModal(counts) {
+  if (counts?.calendars > 0) return;
+  try {
+    if (localStorage.getItem(WELCOME_DISMISSED_KEY)) return;
+  } catch {
+    // localStorage unavailable (e.g. private mode) — better to skip the
+    // welcome than to nag forever.
+    return;
+  }
+  renderWelcomeModal();
+}
+
+function renderWelcomeModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open welcome-overlay";
+  overlay.innerHTML = `
+    <div class="modal-dialog welcome-dialog">
+      <div class="welcome-illust">${illustration("calendar", 96)}</div>
+      <h2 class="welcome-title">Welcome to MiCal</h2>
+      <p class="welcome-lead">
+        Your calendars, finally talking to each other. Here's the path:
+      </p>
+      <ol class="welcome-steps">
+        <li>
+          <strong>Connect a calendar.</strong>
+          <span class="muted">Google, Outlook, or any ICS feed.</span>
+        </li>
+        <li>
+          <strong>Bridge them with sync rules.</strong>
+          <span class="muted">Set up once, runs automatically.</span>
+        </li>
+        <li>
+          <strong>Optionally — share with your family or team.</strong>
+          <span class="muted">Cross-platform, with privacy you control.</span>
+        </li>
+      </ol>
+      <div class="welcome-actions">
+        <a class="btn btn-primary" href="/api/oauth/google/init">Connect Google</a>
+        <a class="btn btn-secondary" href="/api/oauth/microsoft/init">Connect Outlook</a>
+        <button class="btn btn-secondary" id="welcome-skip">Skip for now</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+
+  const dismiss = () => {
+    try {
+      localStorage.setItem(WELCOME_DISMISSED_KEY, String(Date.now()));
+    } catch {}
+    overlay.remove();
+    document.body.style.overflow = "";
+  };
+  overlay.querySelector("#welcome-skip").addEventListener("click", dismiss);
+  // OAuth links navigate the page anyway — set the dismissed flag so a
+  // user who returns mid-flow doesn't see the modal again.
+  overlay.querySelectorAll("a.btn").forEach((a) =>
+    a.addEventListener("click", () => {
+      try {
+        localStorage.setItem(WELCOME_DISMISSED_KEY, String(Date.now()));
+      } catch {}
+    }),
+  );
+  // Click on the dim background dismisses (treat it as "skip").
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) dismiss();
+  });
+}
+
+function checkPostOAuthRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const connected = params.get("connected");
+  if (!connected) return;
+  // Strip the param so a reload doesn't replay the toast.
+  params.delete("connected");
+  const next = params.toString();
+  history.replaceState(
+    null,
+    "",
+    window.location.pathname + (next ? "?" + next : ""),
+  );
+  const provider =
+    connected === "google"
+      ? "Google Calendar"
+      : connected === "microsoft"
+        ? "Outlook"
+        : "Calendar";
+  showSuccess(`${provider} connected.`);
+  // Mark welcome as done — they're past the welcome stage.
+  try {
+    localStorage.setItem(WELCOME_DISMISSED_KEY, String(Date.now()));
+  } catch {}
+}
+
 // ─── Init ───
 async function init() {
   try {
@@ -2786,6 +2985,7 @@ async function init() {
     renderUserInfo();
     // Kick off group load in parallel — switcher self-renders when ready.
     loadGroups();
+    checkPostOAuthRedirect();
     showTab("overview");
   } catch (err) {
     // 401 handled by api()
