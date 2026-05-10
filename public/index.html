@@ -1,166 +1,270 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MiCal — Your Calendars. One Bridge. Zero Conflicts.</title>
-  <meta name="description" content="Connect Google Calendar, Outlook, and ICS feeds. Sync events automatically. Share public booking pages.">
-  <link rel="stylesheet" href="/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌉</text></svg>">
-  <script>
-    // If already logged in, go straight to dashboard
-    fetch('/api/auth/me', { credentials: 'same-origin' })
-      .then(r => { if (r.ok) window.location.replace('/app/'); })
-      .catch(() => {});
-  </script>
-</head>
-<body>
-
-  <!-- Navigation -->
-  <nav>
-    <div class="container nav-inner">
-      <a href="/" class="logo"><img src="/logo.svg" alt="" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;border-radius:8px;">Mi<span>Cal</span></a>
-      <div class="nav-links">
-        <a href="#features">Features</a>
-        <a href="#how-it-works">How it Works</a>
-        <a href="/privacy">Privacy</a>
-        <a href="/login" class="btn btn-primary">Get Started</a>
-      </div>
-    </div>
-  </nav>
-
-  <!-- Hero -->
-  <section class="hero">
-    <div class="container">
-      <h1>Your calendars.<br><em>Finally</em> in sync.</h1>
-      <p class="hero-sub">
-        Connect Google Calendar, Outlook, and ICS feeds into one synchronized system. 
-        Set rules once. Let events flow automatically. Never double-book yourself again.
-      </p>
-      <div class="hero-ctas">
-        <a href="/login" class="btn btn-primary btn-large">Connect Your First Calendar</a>
-        <a href="#how-it-works" class="btn btn-secondary btn-large">See How It Works</a>
-      </div>
-      <p class="hero-note">Free to get started. No credit card required.</p>
-    </div>
-  </section>
-
-  <!-- Problem -->
-  <section class="section problem" id="problem">
-    <div class="container">
-      <h2 class="section-title">Calendar chaos is real</h2>
-      <p class="section-subtitle">If any of these sound familiar, you need a bridge.</p>
-      <div class="problem-grid">
-        <div class="problem-card">
-          <div class="icon">😵‍💫</div>
-          <h3>Multiple Calendar Apps</h3>
-          <p>Google for work. Outlook for clients. An ICS feed for your team. Nothing talks to each other.</p>
-        </div>
-        <div class="problem-card">
-          <div class="icon">📅❌</div>
-          <h3>The Double-Booking Trap</h3>
-          <p>Your Outlook says you're free at 2pm. Your Google Calendar says you're in a meeting. Your client books that slot.</p>
-        </div>
-        <div class="problem-card">
-          <div class="icon">📧🔁</div>
-          <h3>Scheduling Ping-Pong</h3>
-          <p>"How about Tuesday?" "No, Wednesday?" "Wait, what timezone?" There has to be a better way.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section class="section features" id="features">
-    <div class="container">
-      <h2 class="section-title">One bridge. Every calendar.</h2>
-      <p class="section-subtitle">MiCal doesn't replace your calendars. It connects them.</p>
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="icon">🔄</div>
-          <h3>Universal Sync</h3>
-          <p>Google Calendar, Microsoft Outlook, and ICS feeds — all syncing in real-time. Not "eventually." Now.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">⚡</div>
-          <h3>Smart Sync Flows</h3>
-          <p>"Copy events from Calendar A to B, but only 9-5, and mark them private." Set rules once. They run forever.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">🔗</div>
-          <h3>Public Booking Pages</h3>
-          <p>Share a link. Clients pick a time. It lands on your calendar instantly. No account required for them.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">🏢</div>
-          <h3>Multi-Tenant Workspaces</h3>
-          <p>One account, multiple workspaces. Perfect for agencies managing calendars across client organizations.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">🔒</div>
-          <h3>Privacy-First</h3>
-          <p>Your OAuth tokens are encrypted with AES-256-GCM at rest. We can't read your calendar data. Period.</p>
-        </div>
-        <div class="feature-card">
-          <div class="icon">⚙️</div>
-          <h3>API-First Architecture</h3>
-          <p>Built as serverless functions with clean REST endpoints. Integrate with your existing tools and workflows.</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MiCal — Your Calendars. One Bridge. Zero Conflicts.</title>
+    <meta
+      name="description"
+      content="Connect Google Calendar, Outlook, and ICS feeds. Sync events automatically. Share public booking pages."
+    />
+    <link rel="stylesheet" href="/style.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌉</text></svg>"
+    />
+    <script>
+      // If already logged in, go straight to dashboard
+      fetch("/api/auth/me", { credentials: "same-origin" })
+        .then((r) => {
+          if (r.ok) window.location.replace("/app/");
+        })
+        .catch(() => {});
+    </script>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav>
+      <div class="container nav-inner">
+        <a href="/" class="logo"
+          ><img
+            src="/logo.svg"
+            alt=""
+            style="
+              width: 32px;
+              height: 32px;
+              vertical-align: middle;
+              margin-right: 8px;
+              border-radius: 8px;
+            "
+          />Mi<span>Cal</span></a
+        >
+        <button
+          class="nav-toggle"
+          aria-label="Open menu"
+          aria-expanded="false"
+          aria-controls="nav-links"
+          onclick="
+            document.getElementById('nav-links').classList.toggle('open');
+            this.setAttribute(
+              'aria-expanded',
+              this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true',
+            );
+          "
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <div class="nav-links" id="nav-links">
+          <a href="#features">Features</a>
+          <a href="#how-it-works">How it Works</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/login" class="btn btn-primary">Get Started</a>
         </div>
       </div>
-    </div>
-  </section>
+    </nav>
 
-  <!-- How it Works -->
-  <section class="section how-it-works" id="how-it-works">
-    <div class="container">
-      <h2 class="section-title">Set up in 3 minutes</h2>
-      <p class="section-subtitle">No migration. No learning curve. Just connection.</p>
-      <div class="steps">
-        <div class="step">
-          <div class="step-number">1</div>
-          <div class="step-content">
-            <h3>Connect Your Calendars</h3>
-            <p>Authorize Google Calendar, Outlook, or add an ICS feed. MiCal supports all major providers natively.</p>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <h1>Your calendars.<br /><em>Finally</em> in sync.</h1>
+        <p class="hero-sub">
+          Connect Google Calendar, Outlook, and ICS feeds into one synchronized
+          system. Set rules once. Let events flow automatically. Never
+          double-book yourself again.
+        </p>
+        <div class="hero-ctas">
+          <a href="/login" class="btn btn-primary btn-large"
+            >Connect Your First Calendar</a
+          >
+          <a href="#how-it-works" class="btn btn-secondary btn-large"
+            >See How It Works</a
+          >
+        </div>
+        <p class="hero-note">Free to get started. No credit card required.</p>
+      </div>
+    </section>
+
+    <!-- Problem -->
+    <section class="section problem" id="problem">
+      <div class="container">
+        <h2 class="section-title">Calendar chaos is real</h2>
+        <p class="section-subtitle">
+          If any of these sound familiar, you need a bridge.
+        </p>
+        <div class="problem-grid">
+          <div class="problem-card">
+            <div class="icon">😵‍💫</div>
+            <h3>Multiple Calendar Apps</h3>
+            <p>
+              Google for work. Outlook for clients. An ICS feed for your team.
+              Nothing talks to each other.
+            </p>
           </div>
-        </div>
-        <div class="step">
-          <div class="step-number">2</div>
-          <div class="step-content">
-            <h3>Create Sync Flows</h3>
-            <p>Tell MiCal what to sync, where, and when. Add filters for work hours, privacy settings, and buffers.</p>
+          <div class="problem-card">
+            <div class="icon">📅❌</div>
+            <h3>The Double-Booking Trap</h3>
+            <p>
+              Your Outlook says you're free at 2pm. Your Google Calendar says
+              you're in a meeting. Your client books that slot.
+            </p>
           </div>
-        </div>
-        <div class="step">
-          <div class="step-number">3</div>
-          <div class="step-content">
-            <h3>Share Your Booking Page</h3>
-            <p>Create event types with custom durations and availability. Share the link. Watch meetings book themselves.</p>
+          <div class="problem-card">
+            <div class="icon">📧🔁</div>
+            <h3>Scheduling Ping-Pong</h3>
+            <p>
+              "How about Tuesday?" "No, Wednesday?" "Wait, what timezone?" There
+              has to be a better way.
+            </p>
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Final CTA -->
-  <section class="cta-section">
-    <div class="container">
-      <h2>Stop managing calendars.<br>Start bridging them.</h2>
-      <p>Join professionals who've eliminated double-bookings and scheduling friction for good.</p>
-      <a href="/login" class="btn btn-primary btn-large">Connect Your First Calendar</a>
-    </div>
-  </section>
+    <!-- Features -->
+    <section class="section features" id="features">
+      <div class="container">
+        <h2 class="section-title">One bridge. Every calendar.</h2>
+        <p class="section-subtitle">
+          MiCal doesn't replace your calendars. It connects them.
+        </p>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="icon">🔄</div>
+            <h3>Universal Sync</h3>
+            <p>
+              Google Calendar, Microsoft Outlook, and ICS feeds — all syncing in
+              real-time. Not "eventually." Now.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="icon">⚡</div>
+            <h3>Smart Sync Flows</h3>
+            <p>
+              "Copy events from Calendar A to B, but only 9-5, and mark them
+              private." Set rules once. They run forever.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="icon">🔗</div>
+            <h3>Public Booking Pages</h3>
+            <p>
+              Share a link. Clients pick a time. It lands on your calendar
+              instantly. No account required for them.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="icon">🏢</div>
+            <h3>Multi-Tenant Workspaces</h3>
+            <p>
+              One account, multiple workspaces. Perfect for agencies managing
+              calendars across client organizations.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="icon">🔒</div>
+            <h3>Privacy-First</h3>
+            <p>
+              Your OAuth tokens are encrypted with AES-256-GCM at rest. We can't
+              read your calendar data. Period.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="icon">⚙️</div>
+            <h3>API-First Architecture</h3>
+            <p>
+              Built as serverless functions with clean REST endpoints. Integrate
+              with your existing tools and workflows.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-  <!-- Footer -->
-  <footer>
-    <div class="container">
-      <p><strong style="color: white;">MiCal</strong> — Calendar infrastructure for modern professionals.</p>
-      <p style="margin-top: 12px;">
-        <a href="/privacy">Privacy Policy</a> &middot;
-        <a href="/terms">Terms of Service</a>
-      </p>
-      <p style="margin-top: 8px; opacity: 0.5;">&copy; 2026 MiCal. Built with care.</p>
-    </div>
-  </footer>
+    <!-- How it Works -->
+    <section class="section how-it-works" id="how-it-works">
+      <div class="container">
+        <h2 class="section-title">Set up in 3 minutes</h2>
+        <p class="section-subtitle">
+          No migration. No learning curve. Just connection.
+        </p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h3>Connect Your Calendars</h3>
+              <p>
+                Authorize Google Calendar, Outlook, or add an ICS feed. MiCal
+                supports all major providers natively.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h3>Create Sync Flows</h3>
+              <p>
+                Tell MiCal what to sync, where, and when. Add filters for work
+                hours, privacy settings, and buffers.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h3>Share Your Booking Page</h3>
+              <p>
+                Create event types with custom durations and availability. Share
+                the link. Watch meetings book themselves.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-</body>
+    <!-- Final CTA -->
+    <section class="cta-section">
+      <div class="container">
+        <h2>Stop managing calendars.<br />Start bridging them.</h2>
+        <p>
+          Join professionals who've eliminated double-bookings and scheduling
+          friction for good.
+        </p>
+        <a href="/login" class="btn btn-primary btn-large"
+          >Connect Your First Calendar</a
+        >
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div class="container">
+        <p>
+          <strong style="color: white">MiCal</strong> — Calendar infrastructure
+          for modern professionals.
+        </p>
+        <p style="margin-top: 12px">
+          <a href="/privacy">Privacy Policy</a> &middot;
+          <a href="/terms">Terms of Service</a>
+        </p>
+        <p style="margin-top: 8px; opacity: 0.5">
+          &copy; 2026 MiCal. Built with care.
+        </p>
+      </div>
+    </footer>
+  </body>
 </html>

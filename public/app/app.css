@@ -1,18 +1,18 @@
 /* MiCal Dashboard Styles */
 
 :root {
-  --bridge-blue: #0F4C81;
-  --flow-teal: #00C2A8;
-  --cloud: #F5F7FA;
-  --charcoal: #1A202C;
+  --bridge-blue: #0f4c81;
+  --flow-teal: #00c2a8;
+  --cloud: #f5f7fa;
+  --charcoal: #1a202c;
   --stone: #718096;
-  --white: #FFFFFF;
+  --white: #ffffff;
   --teal-dark: #009e88;
   --blue-dark: #0a3a63;
-  --danger: #E53E3E;
-  --danger-dark: #C53030;
-  --warning: #D69E2E;
-  --success: #38A169;
+  --danger: #e53e3e;
+  --danger-dark: #c53030;
+  --warning: #d69e2e;
+  --success: #38a169;
 }
 
 * {
@@ -26,7 +26,9 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
   color: var(--charcoal);
   line-height: 1.6;
   background: var(--cloud);
@@ -42,7 +44,7 @@ body {
 .sidebar {
   width: 260px;
   background: var(--white);
-  border-right: 1px solid rgba(0,0,0,0.06);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -55,7 +57,7 @@ body {
 
 .sidebar-header {
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .sidebar-header a {
@@ -112,7 +114,7 @@ body {
 
 .sidebar-footer {
   padding: 16px;
-  border-top: 1px solid rgba(0,0,0,0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .user-info {
@@ -219,7 +221,7 @@ body {
 
 .top-bar {
   background: var(--white);
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   padding: 14px 28px;
   display: flex;
   align-items: center;
@@ -254,7 +256,7 @@ body {
 .card {
   background: var(--white);
   border-radius: 12px;
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   padding: 24px;
   margin-bottom: 20px;
 }
@@ -283,7 +285,7 @@ body {
 .stat-card {
   background: var(--white);
   border-radius: 12px;
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   padding: 20px;
 }
 
@@ -319,22 +321,92 @@ thead th {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  border-bottom: 1px solid rgba(0,0,0,0.08);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 tbody td {
   padding: 14px 12px;
-  border-bottom: 1px solid rgba(0,0,0,0.04);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   vertical-align: middle;
+}
+
+tbody tr {
+  transition: background 0.12s ease;
+}
+
+tbody tr:hover {
+  background: rgba(15, 76, 129, 0.03);
 }
 
 tbody tr:last-child td {
   border-bottom: none;
 }
 
+.preview-item:not(.disabled) {
+  cursor: pointer;
+}
+
+.preview-item:not(.disabled):hover {
+  background: rgba(15, 76, 129, 0.03);
+}
+
+.stat-card {
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.stat-card.clickable {
+  cursor: pointer;
+}
+
+.stat-card.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
 /* Forms */
 .form-group {
   margin-bottom: 16px;
+}
+
+.weekday-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weekday-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  background: var(--white);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--stone);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+  margin: 0;
+}
+
+.weekday-check input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.weekday-check:hover {
+  border-color: var(--flow-teal);
+}
+
+.weekday-check:has(input:checked) {
+  background: rgba(0, 194, 168, 0.08);
+  border-color: var(--flow-teal);
+  color: var(--bridge-blue);
 }
 
 .form-row {
@@ -360,7 +432,7 @@ select,
 textarea {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 8px;
   font-size: 0.9rem;
   font-family: inherit;
@@ -410,7 +482,7 @@ textarea {
   right: 0;
   bottom: 0;
   background-color: #ccc;
-  transition: .2s;
+  transition: 0.2s;
   border-radius: 24px;
 }
 
@@ -422,7 +494,7 @@ textarea {
   left: 3px;
   bottom: 3px;
   background-color: white;
-  transition: .2s;
+  transition: 0.2s;
   border-radius: 50%;
 }
 
@@ -503,14 +575,16 @@ textarea {
 .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(0,0,0,0.08);
+  border: 2px solid rgba(0, 0, 0, 0.08);
   border-top-color: var(--flow-teal);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Error */
@@ -549,7 +623,7 @@ textarea {
   justify-content: center;
   width: 22px;
   height: 22px;
-  background: #4285F4;
+  background: #4285f4;
   color: white;
   border-radius: 4px;
   font-size: 0.75rem;
@@ -563,7 +637,7 @@ textarea {
   justify-content: center;
   width: 22px;
   height: 22px;
-  background: #0078D4;
+  background: #0078d4;
   color: white;
   border-radius: 4px;
   font-size: 0.75rem;
@@ -620,7 +694,7 @@ textarea {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0, 0, 0, 0.4);
   z-index: 199;
 }
 
@@ -629,7 +703,7 @@ textarea {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
   z-index: 300;
   align-items: center;
   justify-content: center;
@@ -648,7 +722,7 @@ textarea {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
 }
 
 .modal-header {
@@ -656,7 +730,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .modal-header h3 {
@@ -690,7 +764,7 @@ textarea {
   gap: 10px;
   justify-content: flex-end;
   padding: 16px 24px;
-  border-top: 1px solid rgba(0,0,0,0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .preview-account {
@@ -715,7 +789,7 @@ textarea {
   gap: 12px;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   margin-bottom: 8px;
   background: var(--cloud);
 }

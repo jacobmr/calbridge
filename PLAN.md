@@ -24,12 +24,30 @@
 
 MiCal is a calendar bridge that connects Google Calendar, Outlook, and ICS feeds into one synchronized system. Currently it serves individual professionals. The key unlock is expanding into **shared contexts** — families and teams — where multiple people's calendars must be visible to each other, with configurable sync rules.
 
-The core insight: *nobody in the industry solves cross-platform family calendar sharing well*. Google Family Sharing requires everyone on Google. Outlook families require everyone on Microsoft. MiCal's cross-provider architecture makes it uniquely positioned to own this use case.
+The core insight: _nobody in the industry solves cross-platform family calendar sharing well_. Google Family Sharing requires everyone on Google. Outlook families require everyone on Microsoft. MiCal's cross-provider architecture makes it uniquely positioned to own this use case.
 
 This plan covers:
+
 - Critical UX fixes from two expert audits
 - The family/team use case fully spec'd
 - A phased build roadmap
+
+---
+
+## 1.5 Guiding UX Principles
+
+These are non-negotiable. Every feature, every component, every empty state must satisfy them.
+
+1. **Self-evident over explained.** If a user needs a tooltip to know what a control does, redesign the control. Never expose implementation details (bitmasks, JSON, slugs, IDs) to users.
+2. **Hide unused functionality.** A user with zero sync flows should not see a Sync Flows tab full of empty tables and dormant forms. A user with no groups should not see a group switcher. Surface complexity only when the user has accumulated enough state to need it.
+3. **Empty states are invitations, not error pages.** Each empty state has one clear next action.
+4. **Defaults that just work.** A new event type pre-fills sensible defaults (30 min, weekdays 9–5, primary calendar). The user adjusts; they don't configure from scratch.
+5. **The first paint answers the user's first question.** "Is my sync working?" gets answered before the first click.
+6. **Progressive disclosure for everything with >5 fields.** Essentials always visible. Advanced behind a single click.
+7. **No interruption without value.** Toasts auto-dismiss. Confirmations only for destructive actions. Modals only when context truly differs.
+8. **One-mental-model-per-screen.** Don't conflate account linking, calendar curation, and ICS imports on one tab.
+
+> **Test for any new screen:** Cover the docs. Show it to a non-technical friend. They should know what to do in <10 seconds. If not, the screen is wrong.
 
 ---
 
@@ -38,6 +56,7 @@ This plan covers:
 ### 2.1 The Scenario
 
 **The Anderson Family**
+
 - **Parent A (Alex)**: Consultant, works with 5 companies. Uses Google Workspace for personal, Outlook for Client A, another Google for Client B.
 - **Parent B (Jordan)**: Marketing director. Uses Outlook for work, Google personal.
 - **Kid 1**: Soccer team calendar (ICS feed from league website).
@@ -52,11 +71,12 @@ This plan covers:
 
 Alex has an Amazon Echo in the kitchen. "Alexa, what's on my calendar today?" Alexa reads Alex's personal Google calendar. But Alex's work events live in 5 different workspaces.
 
-Alex configures MiCal: *"Push all events from all my work calendars to my personal Gmail calendar, with full detail, so Alexa can read them."*
+Alex configures MiCal: _"Push all events from all my work calendars to my personal Gmail calendar, with full detail, so Alexa can read them."_
 
 ### 2.3 The Consultant Use Case (Alex's Work Story)
 
 Alex works for 5 companies. Each has their own Google Workspace or Office 365. Alex wants to:
+
 1. See ALL events in ONE calendar (their personal Google)
 2. Push "busy" blocks BACK to each company's calendar so they don't get double-booked
 3. Occasionally push full event details (with a `[Client A]` prefix) so meeting prep links are available
@@ -67,35 +87,35 @@ Alex works for 5 companies. Each has their own Google Workspace or Office 365. A
 
 ### 3.1 Critical (Fix Before Release)
 
-| # | Finding | Source Skill | Impact |
-|---|---------|-------------|--------|
-| C1 | **Landing page mobile nav is broken** — links vanish at ≤640px with no hamburger menu | UI/UX Pro Max | Mobile users cannot sign up |
-| C2 | **Event Types form uses programmer concepts** — "Weekdays Mask" (bitmask 31) and "Work Hours JSON" | UX Expert | Users cannot create event types without programming knowledge |
+| #   | Finding                                                                                            | Source Skill  | Impact                                                        |
+| --- | -------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------- |
+| C1  | **Landing page mobile nav is broken** — links vanish at ≤640px with no hamburger menu              | UI/UX Pro Max | Mobile users cannot sign up                                   |
+| C2  | **Event Types form uses programmer concepts** — "Weekdays Mask" (bitmask 31) and "Work Hours JSON" | UX Expert     | Users cannot create event types without programming knowledge |
 
 ### 3.2 Major (Fix in Current Sprint)
 
-| # | Finding | Source Skill | Impact |
-|---|---------|-------------|--------|
-| M1 | **Overview tab is decorative, not actionable** — stats show counts, not health/status | UX Expert | Users land on a page that answers no questions |
-| M2 | **No system health indicators** — no "last synced", "last run", or sync status anywhere | UX Expert | Users can't tell if sync is working |
-| M3 | **Calendars tab conflates 3 mental models** — account linking, calendar curation, ICS addition | UX Expert | Users must hunt for the right action |
-| M4 | **Event Types form has 10+ ungrouped fields** | UX Expert | Overwhelming cognitive load |
-| M5 | **Stats cards show isolated numbers** — "3 sync flows" without context | UX Expert | Numbers are meaningless without status |
-| M6 | **Sidebar nav gives equal weight to all tabs** | UX Expert | No visual signal for primary vs. secondary |
-| M7 | **Emoji icons throughout** — landing page cards, dashboard sidebar, ICS badge | UI/UX Pro Max | Looks unprofessional, breaks on some systems |
-| M8 | **No cursor feedback on interactive elements** — tables, cards, preview items | UI/UX Pro Max | Users don't know what's clickable |
+| #   | Finding                                                                                        | Source Skill  | Impact                                         |
+| --- | ---------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------- |
+| M1  | **Overview tab is decorative, not actionable** — stats show counts, not health/status          | UX Expert     | Users land on a page that answers no questions |
+| M2  | **No system health indicators** — no "last synced", "last run", or sync status anywhere        | UX Expert     | Users can't tell if sync is working            |
+| M3  | **Calendars tab conflates 3 mental models** — account linking, calendar curation, ICS addition | UX Expert     | Users must hunt for the right action           |
+| M4  | **Event Types form has 10+ ungrouped fields**                                                  | UX Expert     | Overwhelming cognitive load                    |
+| M5  | **Stats cards show isolated numbers** — "3 sync flows" without context                         | UX Expert     | Numbers are meaningless without status         |
+| M6  | **Sidebar nav gives equal weight to all tabs**                                                 | UX Expert     | No visual signal for primary vs. secondary     |
+| M7  | **Emoji icons throughout** — landing page cards, dashboard sidebar, ICS badge                  | UI/UX Pro Max | Looks unprofessional, breaks on some systems   |
+| M8  | **No cursor feedback on interactive elements** — tables, cards, preview items                  | UI/UX Pro Max | Users don't know what's clickable              |
 
 ### 3.3 Minor / Polish
 
-| # | Finding | Source Skill |
-|---|---------|-------------|
-| m1 | Tables lack hover row highlighting | UX Expert |
-| m2 | ICS feed form always visible on Calendars tab | UX Expert |
-| m3 | "Order" column in Sync Flows unexplained | UX Expert |
-| m4 | No keyboard shortcuts for power users | UX Expert |
-| m5 | Success banners are inline DOM hacks with manual close | UI/UX Pro Max |
-| m6 | Toggle switch "off" state is generic gray (#ccc) | UI/UX Pro Max |
-| m7 | Dashboard sidebar has no active indicator beyond text color | UI/UX Pro Max |
+| #   | Finding                                                     | Source Skill  |
+| --- | ----------------------------------------------------------- | ------------- |
+| m1  | Tables lack hover row highlighting                          | UX Expert     |
+| m2  | ICS feed form always visible on Calendars tab               | UX Expert     |
+| m3  | "Order" column in Sync Flows unexplained                    | UX Expert     |
+| m4  | No keyboard shortcuts for power users                       | UX Expert     |
+| m5  | Success banners are inline DOM hacks with manual close      | UI/UX Pro Max |
+| m6  | Toggle switch "off" state is generic gray (#ccc)            | UI/UX Pro Max |
+| m7  | Dashboard sidebar has no active indicator beyond text color | UI/UX Pro Max |
 
 ---
 
@@ -104,6 +124,7 @@ Alex works for 5 companies. Each has their own Google Workspace or Office 365. A
 ### 4.1 Core Concept: The "Group"
 
 A **Group** is a shared calendar context. It has:
+
 - A name ("The Andersons", "Client A Team")
 - A type: `family` or `team` (affects default settings, copy, and empty states)
 - Members (users who can see each other's calendars)
@@ -111,7 +132,7 @@ A **Group** is a shared calendar context. It has:
 - Sync rules between members' calendars
 - Booking pages scoped to the group
 
-**Key insight**: Family and Team are the *same feature* with different defaults and copy. A user can be in multiple groups (family + multiple teams).
+**Key insight**: Family and Team are the _same feature_ with different defaults and copy. A user can be in multiple groups (family + multiple teams).
 
 ### 4.2 The User Model
 
@@ -142,12 +163,12 @@ User (Alex)
 
 When Alex joins a group and shares calendars, Jordan (the receiver) configures:
 
-| Setting | Options | Default (Family) | Default (Team) |
-|---------|---------|-----------------|----------------|
-| **What they see** | Full detail · Free/busy only · Nothing | Full detail | Free/busy |
-| **What gets pushed** | Full detail · Busy only · Nothing | Full detail | Busy only |
-| **Event prefix** | Custom text (e.g., "[Alex] ") | "[Alex] " | "[Alex · Client A] " |
-| **Acceptance mode** | Auto-accept · Invite (must accept) · Block | Auto-accept | Invite |
+| Setting              | Options                                    | Default (Family) | Default (Team)       |
+| -------------------- | ------------------------------------------ | ---------------- | -------------------- |
+| **What they see**    | Full detail · Free/busy only · Nothing     | Full detail      | Free/busy            |
+| **What gets pushed** | Full detail · Busy only · Nothing          | Full detail      | Busy only            |
+| **Event prefix**     | Custom text (e.g., "[Alex] ")              | "[Alex] "        | "[Alex · Client A] " |
+| **Acceptance mode**  | Auto-accept · Invite (must accept) · Block | Auto-accept      | Invite               |
 
 **The prefix prevents "who put this on my calendar?"**
 
@@ -178,9 +199,10 @@ Alex sees Jordan's 6pm dinner. Alex can answer immediately.
 
 ### 4.5 The Alexa Use Case (Push to Core)
 
-Alex configures: *"Push all events from all my calendars to my personal Gmail calendar."*
+Alex configures: _"Push all events from all my calendars to my personal Gmail calendar."_
 
 This is just a sync flow:
+
 - Source: All of Alex's calendars (work + personal)
 - Target: Alex's personal Gmail calendar
 - Rule: Copy full detail
@@ -189,6 +211,7 @@ This is just a sync flow:
 ### 4.6 The Consultant Use Case (Busy Pushback)
 
 Alex configures for Client A:
+
 - Source: Alex's personal calendar
 - Target: Client A's shared team calendar
 - Rule: Push busy blocks only (no titles), prefix "[Alex · Busy]"
@@ -199,62 +222,83 @@ Alex configures for Client A:
 ## 5. Priority Roadmap
 
 ### Phase 1: Foundation (Week 1)
+
 Fix critical UX issues. No new features.
 
-| # | Task | Effort |
-|---|------|--------|
-| P1.1 | Fix landing page mobile hamburger nav | Small |
-| P1.2 | Replace emoji icons with SVG/CSS icons | Medium |
-| P1.3 | Add `cursor: pointer` and hover states to interactive elements | Small |
-| P1.4 | Replace Event Types "Weekdays Mask" with 7 checkboxes | Small |
-| P1.5 | Replace Event Types "Work Hours JSON" with time inputs | Small |
-| P1.6 | Auto-dismissing toast notifications (replace inline banners) | Medium |
+| #    | Task                                                           | Effort |
+| ---- | -------------------------------------------------------------- | ------ |
+| P1.1 | Fix landing page mobile hamburger nav                          | Small  |
+| P1.2 | Replace emoji icons with SVG/CSS icons                         | Medium |
+| P1.3 | Add `cursor: pointer` and hover states to interactive elements | Small  |
+| P1.4 | Replace Event Types "Weekdays Mask" with 7 checkboxes          | Small  |
+| P1.5 | Replace Event Types "Work Hours JSON" with time inputs         | Small  |
+| P1.6 | Auto-dismissing toast notifications (replace inline banners)   | Medium |
 
 ### Phase 2: Dashboard Health (Week 2)
+
 Make the dashboard useful.
 
-| # | Task | Effort |
-|---|------|--------|
-| P2.1 | Add `last_synced_at` to calendars, `last_run_at` + `last_run_status` to sync_flows | Small |
+| #    | Task                                                                   | Effort |
+| ---- | ---------------------------------------------------------------------- | ------ |
+| P2.1 | (Removed — `sync_runs` table already exists; wire-up moved to P3.5.7)  | —      |
 | P2.2 | Redesign Overview tab as command center (status cards + activity feed) | Medium |
-| P2.3 | Add hover row highlighting to all tables | Small |
-| P2.4 | Improve sidebar active state (left border indicator) | Small |
-| P2.5 | Restructure Calendars tab by account (grouped table) | Medium |
-| P2.6 | Move ICS feed form behind "Add Manual Feed" button | Small |
+| P2.3 | Add hover row highlighting to all tables                               | Small  |
+| P2.4 | Improve sidebar active state (left border indicator)                   | Small  |
+| P2.5 | Restructure Calendars tab by account (grouped table)                   | Medium |
+| P2.6 | Move ICS feed form behind "Add Manual Feed" button                     | Small  |
 
 ### Phase 3: Forms & Flows (Week 3)
+
 Polish the creation flows.
 
-| # | Task | Effort |
-|---|------|--------|
+| #    | Task                                                               | Effort |
+| ---- | ------------------------------------------------------------------ | ------ |
 | P3.1 | Progressive disclosure for Event Types form (Essential + Advanced) | Medium |
-| P3.2 | Clarify "Order" column in Sync Flows (rename or tooltip) | Small |
-| P3.3 | Add booking count badge to sidebar nav | Small |
-| P3.4 | Add keyboard shortcuts for power users | Small |
+| P3.2 | Clarify "Order" column in Sync Flows (rename or tooltip)           | Small  |
+| P3.3 | Add booking count badge to sidebar nav                             | Small  |
+| P3.4 | Add keyboard shortcuts for power users                             | Small  |
+
+### Phase 3.5: Provider Parity (Week 3.5) — **PREREQUISITE FOR PHASE 4**
+
+The current sync engine is Google-only. Microsoft Graph isn't wired in; ICS isn't read. Every Phase 4 use case (merged family view, Alexa push, consultant busy-pushback) requires reading from and writing to all three providers. This phase unblocks them.
+
+| #      | Task                                                                                          | Effort |
+| ------ | --------------------------------------------------------------------------------------------- | ------ |
+| P3.5.1 | Define `ProviderClient` interface (`listEvents`, `createEvent`, `updateEvent`, `deleteEvent`) | Small  |
+| P3.5.2 | Refactor Google client to implement `ProviderClient`                                          | Small  |
+| P3.5.3 | Implement Microsoft Graph `ProviderClient` (read + write)                                     | Medium |
+| P3.5.4 | Implement ICS read-only `ProviderClient` (parse + cache)                                      | Medium |
+| P3.5.5 | Refactor `sync-engine.mjs` to source provider clients per side                                | Medium |
+| P3.5.6 | Add update + delete handling (currently only creates)                                         | Medium |
+| P3.5.7 | Wire `sync_runs` row insertion at start/end of every run                                      | Small  |
+| P3.5.8 | Surface `last_run_at`/`last_run_status` from `sync_runs` (no new columns needed)              | Small  |
+
+**Acceptance**: A Google→Outlook sync flow works end-to-end. An ICS feed appears as readable in the merged view. The Overview health card derives status from `sync_runs`.
 
 ### Phase 4: Groups (Week 4–5)
-The big feature: families and teams.
 
-| # | Task | Effort |
-|---|------|--------|
-| P4.1 | Database: `groups`, `group_memberships`, `group_calendar_shares` tables | Medium |
-| P4.2 | API: CRUD for groups, invite members, accept/reject | Medium |
-| P4.3 | API: Visibility settings (what I see of you, what you push to me) | Medium |
-| P4.4 | Dashboard: Group switcher (sidebar or top bar) | Medium |
-| P4.5 | Dashboard: Merged calendar view for a group | Large |
-| P4.6 | Dashboard: Member management (invite, roles, visibility settings) | Medium |
-| P4.7 | Sync engine: Support cross-tenant sync flows (push to member's calendar) | Large |
-| P4.8 | Dashboard: "Ask the family" quick poll | Medium |
+The big feature: families and teams. **Depends on Phase 3.5.**
+
+| #    | Task                                                                     | Effort |
+| ---- | ------------------------------------------------------------------------ | ------ |
+| P4.1 | Database: `groups`, `group_memberships`, `group_calendar_shares` tables  | Medium |
+| P4.2 | API: CRUD for groups, invite members, accept/reject                      | Medium |
+| P4.3 | API: Visibility settings (what I see of you, what you push to me)        | Medium |
+| P4.4 | Dashboard: Group switcher (sidebar or top bar)                           | Medium |
+| P4.5 | Dashboard: Merged calendar view for a group                              | Large  |
+| P4.6 | Dashboard: Member management (invite, roles, visibility settings)        | Medium |
+| P4.7 | Sync engine: Support cross-tenant sync flows (push to member's calendar) | Large  |
+| P4.8 | Dashboard: "Ask the family" quick poll                                   | Medium |
 
 ### Phase 5: Polish & Launch (Week 6)
 
-| # | Task | Effort |
-|---|------|--------|
-| P5.1 | Landing page: Add family/team use case to messaging | Small |
-| P5.2 | Landing page: Family testimonial / scenario | Small |
-| P5.3 | Onboarding: Group creation flow for new users | Medium |
+| #    | Task                                                 | Effort |
+| ---- | ---------------------------------------------------- | ------ |
+| P5.1 | Landing page: Add family/team use case to messaging  | Small  |
+| P5.2 | Landing page: Family testimonial / scenario          | Small  |
+| P5.3 | Onboarding: Group creation flow for new users        | Medium |
 | P5.4 | Empty states: Family-specific illustrations and copy | Medium |
-| P5.5 | Performance: Test with 5+ calendars, 3+ members | Medium |
+| P5.5 | Performance: Test with 5+ calendars, 3+ members      | Medium |
 
 ---
 
@@ -272,11 +316,18 @@ The big feature: families and teams.
 
 <!-- After -->
 <div class="icon">
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-    <path d="M3 3v5h5"/>
-    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-    <path d="M16 16h5v5"/>
+  <svg
+    width="32"
+    height="32"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+  >
+    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5" />
+    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+    <path d="M16 16h5v5" />
   </svg>
 </div>
 ```
@@ -289,12 +340,8 @@ The big feature: families and teams.
 
 ```html
 <div class="weekdays-group">
-  <label class="weekday-check">
-    <input type="checkbox" checked> Mon
-  </label>
-  <label class="weekday-check">
-    <input type="checkbox" checked> Tue
-  </label>
+  <label class="weekday-check"> <input type="checkbox" checked /> Mon </label>
+  <label class="weekday-check"> <input type="checkbox" checked /> Tue </label>
   <!-- ... -->
 </div>
 ```
@@ -305,9 +352,9 @@ Client-side: compute bitmask from checked boxes. Server-side: accept either bitm
 
 ```html
 <div class="work-hours-group">
-  <input type="time" value="09:00">
+  <input type="time" value="09:00" />
   <span>to</span>
-  <input type="time" value="17:00">
+  <input type="time" value="17:00" />
 </div>
 ```
 
@@ -350,6 +397,7 @@ Client-side: JSON-stringify for API. Server-side: accept JSON or `{start, end}` 
 ```
 
 **Health rules:**
+
 - **Healthy**: Last sync/run within 24h
 - **Stale**: Last sync/run > 24h but < 7 days
 - **Warning**: Last sync/run > 7 days or last run had errors
@@ -531,6 +579,7 @@ Acceptance: Auto-accept
 ```
 
 Implementation: The sync engine needs to:
+
 1. Read from Alex's calendar (Alex's OAuth token)
 2. Write to Jordan's calendar (Jordan's OAuth token)
 3. Apply prefix and visibility rules
@@ -563,29 +612,29 @@ This is the same sync engine, but the target calendar belongs to a different use
 
 ### New Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/groups` | List my groups |
-| POST | `/api/groups` | Create a group |
-| GET | `/api/groups/:id` | Get group details |
-| PATCH | `/api/groups/:id` | Update group |
-| DELETE | `/api/groups/:id` | Delete group (owner only) |
-| POST | `/api/groups/:id/invite` | Invite user by email |
-| POST | `/api/groups/:id/join` | Accept invitation |
-| DELETE | `/api/groups/:id/members/:userId` | Remove member |
-| GET | `/api/groups/:id/calendars` | List shared calendars in group |
-| GET | `/api/groups/:id/availability` | Check group availability for a time range |
-| POST | `/api/groups/:id/poll` | Create an "ask the family" poll |
+| Method | Path                              | Description                               |
+| ------ | --------------------------------- | ----------------------------------------- |
+| GET    | `/api/groups`                     | List my groups                            |
+| POST   | `/api/groups`                     | Create a group                            |
+| GET    | `/api/groups/:id`                 | Get group details                         |
+| PATCH  | `/api/groups/:id`                 | Update group                              |
+| DELETE | `/api/groups/:id`                 | Delete group (owner only)                 |
+| POST   | `/api/groups/:id/invite`          | Invite user by email                      |
+| POST   | `/api/groups/:id/join`            | Accept invitation                         |
+| DELETE | `/api/groups/:id/members/:userId` | Remove member                             |
+| GET    | `/api/groups/:id/calendars`       | List shared calendars in group            |
+| GET    | `/api/groups/:id/availability`    | Check group availability for a time range |
+| POST   | `/api/groups/:id/poll`            | Create an "ask the family" poll           |
 
 ### Modified Endpoints
 
-| Method | Path | Change |
-|--------|------|--------|
-| GET | `/api/auth/me` | Include `groups` array in response |
-| GET | `/api/calendars` | Accept `?group_id=` parameter |
-| POST | `/api/sync-flows` | Accept `group_id` for cross-member flows |
-| GET | `/api/sync-flows` | Include group-scoped flows |
-| POST | `/api/event-types` | Accept `group_id` for group booking pages |
+| Method | Path               | Change                                    |
+| ------ | ------------------ | ----------------------------------------- |
+| GET    | `/api/auth/me`     | Include `groups` array in response        |
+| GET    | `/api/calendars`   | Accept `?group_id=` parameter             |
+| POST   | `/api/sync-flows`  | Accept `group_id` for cross-member flows  |
+| GET    | `/api/sync-flows`  | Include group-scoped flows                |
+| POST   | `/api/event-types` | Accept `group_id` for group booking pages |
 
 ---
 
@@ -605,16 +654,16 @@ This is the same sync engine, but the target calendar belongs to a different use
 
 Use **family** or **team** language based on group type. Never generic "group" in user-facing copy.
 
-| Context | Family Copy | Team Copy |
-|---------|------------|-----------|
-| Create flow | "Create a Family" | "Create a Team" |
-| Invite | "Invite your partner" | "Invite a teammate" |
-| Share calendars | "Share calendars with family" | "Share calendars with team" |
-| Merged view | "Family Schedule" | "Team Schedule" |
-| Booking page | "Let friends book time with your family" | "Let clients book time with your team" |
-| Poll | "Ask the family" | "Check team availability" |
-| Prefix default | "[Alex] " | "[Alex · Client A] " |
+| Context         | Family Copy                              | Team Copy                              |
+| --------------- | ---------------------------------------- | -------------------------------------- |
+| Create flow     | "Create a Family"                        | "Create a Team"                        |
+| Invite          | "Invite your partner"                    | "Invite a teammate"                    |
+| Share calendars | "Share calendars with family"            | "Share calendars with team"            |
+| Merged view     | "Family Schedule"                        | "Team Schedule"                        |
+| Booking page    | "Let friends book time with your family" | "Let clients book time with your team" |
+| Poll            | "Ask the family"                         | "Check team availability"              |
+| Prefix default  | "[Alex] "                                | "[Alex · Client A] "                   |
 
 ---
 
-*End of plan. Ready for implementation sprint.*
+_End of plan. Ready for implementation sprint._

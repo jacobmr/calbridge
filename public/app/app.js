@@ -2,7 +2,7 @@
 
 // ─── State ───
 let currentUser = null;
-let currentTab = 'overview';
+let currentTab = "overview";
 let calendars = [];
 let syncFlows = [];
 let eventTypes = [];
@@ -11,90 +11,110 @@ let editingEventTypeId = null;
 let editingSyncFlowId = null;
 
 // ─── Helpers ───
-function $(sel) { return document.querySelector(sel); }
-function $$(sel) { return document.querySelectorAll(sel); }
+function $(sel) {
+  return document.querySelector(sel);
+}
+function $$(sel) {
+  return document.querySelectorAll(sel);
+}
 
 function formatDate(ms) {
-  if (!ms) return '—';
+  if (!ms) return "—";
   const d = new Date(Number(ms));
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function getInitials(name, email) {
-  const str = name || email || '?';
-  const parts = str.split(' ').filter(Boolean);
-  if (parts.length > 1) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  const str = name || email || "?";
+  const parts = str.split(" ").filter(Boolean);
+  if (parts.length > 1)
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return str.slice(0, 2).toUpperCase();
 }
 
 function showError(msg, container) {
-  const el = document.createElement('div');
-  el.className = 'error-banner';
+  const el = document.createElement("div");
+  el.className = "error-banner";
   el.innerHTML = `<span>${escapeHtml(msg)}</span><button onclick="this.parentElement.remove()">×</button>`;
-  const target = typeof container === 'string' ? $(container) : container;
+  const target = typeof container === "string" ? $(container) : container;
   if (target) target.prepend(el);
 }
 
 function clearErrors(container) {
-  const target = typeof container === 'string' ? $(container) : container;
-  if (target) target.querySelectorAll('.error-banner').forEach(el => el.remove());
+  const target = typeof container === "string" ? $(container) : container;
+  if (target)
+    target.querySelectorAll(".error-banner").forEach((el) => el.remove());
 }
 
 function escapeHtml(str) {
-  if (str == null) return '';
+  if (str == null) return "";
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function providerIcon(provider) {
   const p = String(provider).toLowerCase();
-  if (p === 'google') return '<span class="provider-google"></span>';
-  if (p === 'microsoft' || p === 'outlook' || p === 'live') return '<span class="provider-microsoft"></span>';
+  if (p === "google") return '<span class="provider-google"></span>';
+  if (p === "microsoft" || p === "outlook" || p === "live")
+    return '<span class="provider-microsoft"></span>';
   return '<span class="provider-ics"></span>';
 }
 
 function calendarLabel(id) {
-  const cal = calendars.find(c => c.id === id);
-  return cal ? `${escapeHtml(cal.label)} (${providerName(cal.provider)})` : escapeHtml(id);
+  const cal = calendars.find((c) => c.id === id);
+  return cal
+    ? `${escapeHtml(cal.label)} (${providerName(cal.provider)})`
+    : escapeHtml(id);
 }
 
 function providerName(provider) {
   const p = String(provider).toLowerCase();
-  if (p === 'google') return 'Google Calendar';
-  if (p === 'microsoft' || p === 'outlook' || p === 'live') return 'Outlook';
-  if (p === 'ics') return 'ICS Feed';
+  if (p === "google") return "Google Calendar";
+  if (p === "microsoft" || p === "outlook" || p === "live") return "Outlook";
+  if (p === "ics") return "ICS Feed";
   return escapeHtml(provider);
 }
 
 function statusBadge(status) {
   const s = String(status).toLowerCase();
-  if (s === 'confirmed') return '<span class="badge badge-success">Confirmed</span>';
-  if (s === 'cancelled') return '<span class="badge badge-danger">Cancelled</span>';
-  if (s === 'pending') return '<span class="badge badge-warning">Pending</span>';
+  if (s === "confirmed")
+    return '<span class="badge badge-success">Confirmed</span>';
+  if (s === "cancelled")
+    return '<span class="badge badge-danger">Cancelled</span>';
+  if (s === "pending")
+    return '<span class="badge badge-warning">Pending</span>';
   return `<span class="badge badge-info">${escapeHtml(status)}</span>`;
 }
 
 async function api(url, options = {}) {
   const res = await fetch(url, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", ...options.headers },
     ...options,
   });
 
   if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.href = '/login';
-    throw new Error('unauthorized');
+    const returnTo = encodeURIComponent(
+      window.location.pathname + window.location.search,
+    );
+    window.location.href = "/login";
+    throw new Error("unauthorized");
   }
 
   let data = null;
-  const contentType = res.headers.get('content-type') || '';
+  const contentType = res.headers.get("content-type") || "";
   if (res.status === 204) {
     data = null;
-  } else if (contentType.includes('application/json')) {
+  } else if (contentType.includes("application/json")) {
     const text = await res.text();
     data = text ? JSON.parse(text) : null;
   } else {
@@ -118,52 +138,53 @@ function showTab(tab) {
   currentTab = tab;
 
   // Update nav active state
-  $$('.nav-item').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tab);
+  $$(".nav-item").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tab);
   });
 
   // Hide all pages
-  $$('.tab-page').forEach(page => page.style.display = 'none');
+  $$(".tab-page").forEach((page) => (page.style.display = "none"));
 
   // Show selected page
   const page = $(`#tab-${tab}`);
-  if (page) page.style.display = 'block';
+  if (page) page.style.display = "block";
 
   // Update page title
   const titles = {
-    overview: 'Dashboard',
-    calendars: 'Calendars',
-    'sync-flows': 'Sync Flows',
-    'event-types': 'Event Types',
-    bookings: 'Bookings',
+    overview: "Dashboard",
+    calendars: "Calendars",
+    "sync-flows": "Sync Flows",
+    "event-types": "Event Types",
+    bookings: "Bookings",
   };
-  const titleEl = $('#page-title');
-  if (titleEl) titleEl.textContent = titles[tab] || 'Dashboard';
+  const titleEl = $("#page-title");
+  if (titleEl) titleEl.textContent = titles[tab] || "Dashboard";
 
   // Close mobile sidebar
-  $('.sidebar').classList.remove('open');
-  $('.sidebar-overlay').classList.remove('open');
+  $(".sidebar").classList.remove("open");
+  $(".sidebar-overlay").classList.remove("open");
 
   // Load data
-  if (tab === 'overview') loadOverview();
-  if (tab === 'calendars') loadCalendars();
-  if (tab === 'sync-flows') loadSyncFlows();
-  if (tab === 'event-types') loadEventTypes();
-  if (tab === 'bookings') loadBookings();
+  if (tab === "overview") loadOverview();
+  if (tab === "calendars") loadCalendars();
+  if (tab === "sync-flows") loadSyncFlows();
+  if (tab === "event-types") loadEventTypes();
+  if (tab === "bookings") loadBookings();
 }
 
 // ─── Overview ───
 async function loadOverview() {
-  const container = $('#overview-content');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading…</div>';
+  const container = $("#overview-content");
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading…</div>';
 
   try {
     const [me, cals, flows, types, bks] = await Promise.all([
-      api('/api/auth/me'),
-      api('/api/calendars'),
-      api('/api/sync-flows'),
-      api('/api/event-types'),
-      api('/api/bookings'),
+      api("/api/auth/me"),
+      api("/api/calendars"),
+      api("/api/sync-flows"),
+      api("/api/event-types"),
+      api("/api/bookings"),
     ]);
 
     currentUser = me;
@@ -175,7 +196,7 @@ async function loadOverview() {
     renderUserInfo();
     renderOverview();
   } catch (err) {
-    if (err.message !== 'unauthorized') {
+    if (err.message !== "unauthorized") {
       container.innerHTML = `<div class="error-banner">Failed to load: ${escapeHtml(err.message)}</div>`;
     }
   }
@@ -183,17 +204,21 @@ async function loadOverview() {
 
 function renderUserInfo() {
   if (!currentUser) return;
-  const name = currentUser.display_name || currentUser.email?.split('@')[0] || 'User';
-  const email = currentUser.email || '';
-  $('#user-name').textContent = name;
-  $('#user-email').textContent = email;
-  $('#user-avatar').textContent = getInitials(name, email);
+  const name =
+    currentUser.display_name || currentUser.email?.split("@")[0] || "User";
+  const email = currentUser.email || "";
+  $("#user-name").textContent = name;
+  $("#user-email").textContent = email;
+  $("#user-avatar").textContent = getInitials(name, email);
 }
 
 function renderOverview() {
-  const container = $('#overview-content');
-  const name = currentUser?.display_name || currentUser?.email?.split('@')[0] || 'there';
-  const tenantSlug = currentUser?.tenant_slug ? `Tenant: <strong>${escapeHtml(currentUser.tenant_slug)}</strong>` : '';
+  const container = $("#overview-content");
+  const name =
+    currentUser?.display_name || currentUser?.email?.split("@")[0] || "there";
+  const tenantSlug = currentUser?.tenant_slug
+    ? `Tenant: <strong>${escapeHtml(currentUser.tenant_slug)}</strong>`
+    : "";
 
   container.innerHTML = `
     <div class="stats-grid">
@@ -220,7 +245,7 @@ function renderOverview() {
         <div class="card-title">Welcome back, ${escapeHtml(name)}!</div>
       </div>
       <p style="color:var(--stone)">This is your MiCal dashboard. Use the sidebar to manage calendars, sync flows, event types, and bookings.</p>
-      ${tenantSlug ? `<p style="margin-top:8px;color:var(--stone);font-size:0.9rem">${tenantSlug}</p>` : ''}
+      ${tenantSlug ? `<p style="margin-top:8px;color:var(--stone);font-size:0.9rem">${tenantSlug}</p>` : ""}
     </div>
 
     <div class="card">
@@ -238,24 +263,25 @@ function renderOverview() {
 
 // ─── Calendars ───
 async function loadCalendars() {
-  const container = $('#calendars-content');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading calendars…</div>';
+  const container = $("#calendars-content");
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading calendars…</div>';
 
   try {
-    calendars = await api('/api/calendars');
+    calendars = await api("/api/calendars");
     renderCalendars();
   } catch (err) {
-    if (err.message !== 'unauthorized') {
+    if (err.message !== "unauthorized") {
       container.innerHTML = `<div class="error-banner">Failed to load calendars: ${escapeHtml(err.message)}</div>`;
     }
   }
 }
 
 function renderCalendars() {
-  const container = $('#calendars-content');
+  const container = $("#calendars-content");
   clearErrors(container);
 
-  let listHtml = '';
+  let listHtml = "";
   if (calendars.length === 0) {
     listHtml = `
       <div class="empty-state">
@@ -272,14 +298,16 @@ function renderCalendars() {
             <tr><th>Provider</th><th>Label</th><th>Role</th><th>Status</th><th style="width:100px;text-align:right">Actions</th></tr>
           </thead>
           <tbody>
-            ${calendars.map(cal => `
+            ${calendars
+              .map(
+                (cal) => `
               <tr data-id="${escapeHtml(cal.id)}">
                 <td><div class="provider-icon">${providerIcon(cal.provider)} ${providerName(cal.provider)}</div></td>
                 <td>${escapeHtml(cal.label)}</td>
                 <td>${escapeHtml(cal.role)}</td>
                 <td>
-                  <label class="toggle" title="${cal.enabled ? 'Active' : 'Disabled'}">
-                    <input type="checkbox" ${cal.enabled ? 'checked' : ''} onchange="toggleCalendar('${escapeHtml(cal.id)}', this.checked)">
+                  <label class="toggle" title="${cal.enabled ? "Active" : "Disabled"}">
+                    <input type="checkbox" ${cal.enabled ? "checked" : ""} onchange="toggleCalendar('${escapeHtml(cal.id)}', this.checked)">
                     <span class="toggle-slider"></span>
                   </label>
                 </td>
@@ -287,7 +315,9 @@ function renderCalendars() {
                   <button class="btn btn-danger btn-sm" onclick="deleteCalendar('${escapeHtml(cal.id)}')" title="Remove this calendar">🗑️ Remove</button>
                 </td>
               </tr>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </tbody>
         </table>
       </div>
@@ -334,31 +364,32 @@ function renderCalendars() {
 
 async function discoverCalendars() {
   openPreviewModal();
-  const body = $('#preview-modal-body');
-  body.innerHTML = '<div class="loading"><div class="spinner"></div>Discovering calendars…</div>';
+  const body = $("#preview-modal-body");
+  body.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Discovering calendars…</div>';
 
   try {
-    const data = await api('/api/calendars/preview');
+    const data = await api("/api/calendars/preview");
     renderPreview(data.discovered || []);
   } catch (err) {
-    if (err.message !== 'unauthorized') {
+    if (err.message !== "unauthorized") {
       body.innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
     }
   }
 }
 
 function openPreviewModal() {
-  $('#preview-modal').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  $("#preview-modal").classList.add("open");
+  document.body.style.overflow = "hidden";
 }
 
 function closePreviewModal() {
-  $('#preview-modal').classList.remove('open');
-  document.body.style.overflow = '';
+  $("#preview-modal").classList.remove("open");
+  document.body.style.overflow = "";
 }
 
 function renderPreview(discovered) {
-  const body = $('#preview-modal-body');
+  const body = $("#preview-modal-body");
 
   if (discovered.length === 0) {
     body.innerHTML = `
@@ -374,17 +405,22 @@ function renderPreview(discovered) {
   // Group by account
   const byAccount = {};
   for (const item of discovered) {
-    const key = `${item.provider}:${item.accountEmail || 'unknown'}`;
-    if (!byAccount[key]) byAccount[key] = { provider: item.provider, email: item.accountEmail, items: [] };
+    const key = `${item.provider}:${item.accountEmail || "unknown"}`;
+    if (!byAccount[key])
+      byAccount[key] = {
+        provider: item.provider,
+        email: item.accountEmail,
+        items: [],
+      };
     byAccount[key].items.push(item);
   }
 
-  let html = '';
+  let html = "";
   for (const [key, group] of Object.entries(byAccount)) {
     html += `
       <div class="preview-account">
         <div class="preview-account-title">
-          ${providerIcon(group.provider)} ${escapeHtml(group.email || 'Unknown account')}
+          ${providerIcon(group.provider)} ${escapeHtml(group.email || "Unknown account")}
         </div>
     `;
     for (const item of group.items) {
@@ -392,29 +428,35 @@ function renderPreview(discovered) {
         html += `<div class="preview-item" style="border-color:rgba(229,62,62,0.2);background:rgba(229,62,62,0.04);"><span style="color:var(--danger);font-size:0.85rem;">Error: ${escapeHtml(item.error)}</span></div>`;
         continue;
       }
-      const checked = item.alreadyImported ? '' : 'checked';
-      const disabled = item.alreadyImported ? 'disabled' : '';
-      const cssClass = item.alreadyImported ? 'preview-item disabled' : 'preview-item';
-      const importedTag = item.alreadyImported ? '<span class="already-imported">✓ Imported</span>' : '';
+      const checked = item.alreadyImported ? "" : "checked";
+      const disabled = item.alreadyImported ? "disabled" : "";
+      const cssClass = item.alreadyImported
+        ? "preview-item disabled"
+        : "preview-item";
+      const importedTag = item.alreadyImported
+        ? '<span class="already-imported">✓ Imported</span>'
+        : "";
       html += `
         <div class="${cssClass}">
           <input type="checkbox" id="chk-${escapeHtml(item.providerCalendarId)}" value="${escapeHtml(JSON.stringify(item))}" ${checked} ${disabled}>
           <label for="chk-${escapeHtml(item.providerCalendarId)}">
-            <strong>${escapeHtml(item.summary || 'Untitled')}</strong>
-            ${item.primary ? '<span class="badge badge-info">Primary</span>' : ''}
+            <strong>${escapeHtml(item.summary || "Untitled")}</strong>
+            ${item.primary ? '<span class="badge badge-info">Primary</span>' : ""}
           </label>
           ${importedTag}
         </div>
       `;
     }
-    html += '</div>';
+    html += "</div>";
   }
 
   body.innerHTML = html;
 }
 
 async function importSelectedCalendars() {
-  const checkboxes = $$('#preview-modal-body input[type="checkbox"]:checked:not([disabled])');
+  const checkboxes = $$(
+    '#preview-modal-body input[type="checkbox"]:checked:not([disabled])',
+  );
   if (checkboxes.length === 0) {
     closePreviewModal();
     return;
@@ -424,30 +466,36 @@ async function importSelectedCalendars() {
   for (const cb of checkboxes) {
     try {
       selections.push(JSON.parse(cb.value));
-    } catch { /* ignore malformed */ }
+    } catch {
+      /* ignore malformed */
+    }
   }
 
-  const btn = $('#preview-import-btn');
+  const btn = $("#preview-import-btn");
   const original = btn.textContent;
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></div> Importing…';
+  btn.innerHTML =
+    '<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></div> Importing…';
 
   try {
-    await api('/api/calendars/import', {
-      method: 'POST',
+    await api("/api/calendars/import", {
+      method: "POST",
       body: JSON.stringify({ selections }),
     });
     closePreviewModal();
-    calendars = await api('/api/calendars');
+    calendars = await api("/api/calendars");
     renderCalendars();
-    const container = $('#calendars-content');
-    const el = document.createElement('div');
-    el.style.cssText = 'background:rgba(56,161,105,0.08);color:var(--success);padding:12px 16px;border-radius:8px;font-size:0.9rem;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+    const container = $("#calendars-content");
+    const el = document.createElement("div");
+    el.style.cssText =
+      "background:rgba(56,161,105,0.08);color:var(--success);padding:12px 16px;border-radius:8px;font-size:0.9rem;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;";
     el.innerHTML = `<span>Imported ${selections.length} calendar(s).</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:1rem;">×</button>`;
     container.prepend(el);
   } catch (err) {
-    if (err.message !== 'unauthorized') {
-      $('#preview-modal-body').prepend(`<div class="error-banner">${escapeHtml(err.message)}</div>`);
+    if (err.message !== "unauthorized") {
+      $("#preview-modal-body").prepend(
+        `<div class="error-banner">${escapeHtml(err.message)}</div>`,
+      );
     }
   } finally {
     btn.disabled = false;
@@ -456,79 +504,85 @@ async function importSelectedCalendars() {
 }
 
 async function toggleCalendar(id, enabled) {
-  clearErrors('#calendars-content');
+  clearErrors("#calendars-content");
   try {
     await api(`/api/calendars/${id}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ enabled }),
     });
-    const cal = calendars.find(c => c.id === id);
+    const cal = calendars.find((c) => c.id === id);
     if (cal) cal.enabled = enabled ? 1 : 0;
   } catch (err) {
-    showError(err.message, '#calendars-content');
+    showError(err.message, "#calendars-content");
     renderCalendars();
   }
 }
 
 async function deleteCalendar(id) {
-  if (!confirm('Remove this calendar? Sync flows using it will break.')) return;
-  clearErrors('#calendars-content');
+  if (!confirm("Remove this calendar? Sync flows using it will break.")) return;
+  clearErrors("#calendars-content");
   try {
-    await api(`/api/calendars/${id}`, { method: 'DELETE' });
-    calendars = calendars.filter(c => c.id !== id);
+    await api(`/api/calendars/${id}`, { method: "DELETE" });
+    calendars = calendars.filter((c) => c.id !== id);
     renderCalendars();
   } catch (err) {
-    showError(err.message, '#calendars-content');
+    showError(err.message, "#calendars-content");
   }
 }
 
 async function handleIcsSubmit(e) {
   e.preventDefault();
-  clearErrors('#calendars-content');
+  clearErrors("#calendars-content");
 
   const body = {
-    label: $('#ics-label').value.trim(),
-    ics_url: $('#ics-url').value.trim(),
-    role: $('#ics-role').value.trim(),
+    label: $("#ics-label").value.trim(),
+    ics_url: $("#ics-url").value.trim(),
+    role: $("#ics-role").value.trim(),
   };
 
   try {
-    await api('/api/calendars', { method: 'POST', body: JSON.stringify(body) });
-    $('#ics-form').reset();
-    calendars = await api('/api/calendars');
+    await api("/api/calendars", { method: "POST", body: JSON.stringify(body) });
+    $("#ics-form").reset();
+    calendars = await api("/api/calendars");
     renderCalendars();
   } catch (err) {
-    showError(err.message, '#calendars-content');
+    showError(err.message, "#calendars-content");
   }
 }
 
 // ─── Sync Flows ───
 async function loadSyncFlows() {
-  const container = $('#sync-flows-content');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading sync flows…</div>';
+  const container = $("#sync-flows-content");
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading sync flows…</div>';
 
   try {
     const [cals, flows] = await Promise.all([
-      api('/api/calendars'),
-      api('/api/sync-flows'),
+      api("/api/calendars"),
+      api("/api/sync-flows"),
     ]);
     calendars = cals || [];
     syncFlows = flows || [];
     renderSyncFlows();
   } catch (err) {
-    if (err.message !== 'unauthorized') {
+    if (err.message !== "unauthorized") {
       container.innerHTML = `<div class="error-banner">Failed to load sync flows: ${escapeHtml(err.message)}</div>`;
     }
   }
 }
 
 function renderSyncFlows() {
-  const container = $('#sync-flows-content');
+  const container = $("#sync-flows-content");
   clearErrors(container);
 
-  const calOptions = calendars.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)} (${providerName(c.provider)})</option>`).join('');
+  const calOptions = calendars
+    .map(
+      (c) =>
+        `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)} (${providerName(c.provider)})</option>`,
+    )
+    .join("");
 
-  let listHtml = '';
+  let listHtml = "";
   if (syncFlows.length === 0) {
     listHtml = `
       <div class="empty-state">
@@ -545,7 +599,9 @@ function renderSyncFlows() {
             <tr><th>Source</th><th></th><th>Target</th><th>Options</th><th>Enabled</th><th>Order</th><th>Actions</th></tr>
           </thead>
           <tbody>
-            ${syncFlows.map(flow => `
+            ${syncFlows
+              .map(
+                (flow) => `
               <tr data-id="${escapeHtml(flow.id)}">
                 <td>${escapeHtml(flow.source_calendar_label || flow.source_calendar_id)}</td>
                 <td style="color:var(--flow-teal);font-weight:700">→</td>
@@ -553,7 +609,7 @@ function renderSyncFlows() {
                 <td>${flow.options_json ? escapeHtml(optionsToNaturalLanguage(JSON.parse(flow.options_json))) : '<span style="color:var(--stone)">Default rules</span>'}</td>
                 <td>
                   <label class="toggle">
-                    <input type="checkbox" ${flow.enabled ? 'checked' : ''} onchange="toggleSyncFlow('${escapeHtml(flow.id)}', this.checked)">
+                    <input type="checkbox" ${flow.enabled ? "checked" : ""} onchange="toggleSyncFlow('${escapeHtml(flow.id)}', this.checked)">
                     <span class="toggle-slider"></span>
                   </label>
                 </td>
@@ -565,7 +621,9 @@ function renderSyncFlows() {
                   </div>
                 </td>
               </tr>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </tbody>
         </table>
       </div>
@@ -573,7 +631,9 @@ function renderSyncFlows() {
   }
 
   const isEditing = editingSyncFlowId !== null;
-  const editFlow = isEditing ? syncFlows.find(f => f.id === editingSyncFlowId) : null;
+  const editFlow = isEditing
+    ? syncFlows.find((f) => f.id === editingSyncFlowId)
+    : null;
 
   container.innerHTML = `
     <div class="card">
@@ -584,7 +644,7 @@ function renderSyncFlows() {
     </div>
 
     <div class="card">
-      <div class="card-title" style="margin-bottom:16px">${isEditing ? 'Edit Sync Flow' : 'Create Sync Flow'}</div>
+      <div class="card-title" style="margin-bottom:16px">${isEditing ? "Edit Sync Flow" : "Create Sync Flow"}</div>
       <form id="sync-flow-form" onsubmit="handleSyncFlowSubmit(event)">
         <div class="form-row">
           <div class="form-group">
@@ -686,79 +746,82 @@ function renderSyncFlows() {
           <span style="font-size:0.9rem;color:var(--stone)">Enabled</span>
         </div>
         <div style="display:flex;gap:10px;">
-          <button type="submit" class="btn btn-primary">${isEditing ? 'Update Flow' : 'Create Flow'}</button>
-          ${isEditing ? `<button type="button" class="btn btn-secondary" onclick="cancelEditSyncFlow()">Cancel</button>` : ''}
+          <button type="submit" class="btn btn-primary">${isEditing ? "Update Flow" : "Create Flow"}</button>
+          ${isEditing ? `<button type="button" class="btn btn-secondary" onclick="cancelEditSyncFlow()">Cancel</button>` : ""}
         </div>
       </form>
     </div>
   `;
 
   if (editFlow) {
-    $('#sf-source').value = editFlow.source_calendar_id;
-    $('#sf-target').value = editFlow.target_calendar_id;
-    $('#sf-ord').value = editFlow.ord;
-    $('#sf-enabled').checked = editFlow.enabled;
+    $("#sf-source").value = editFlow.source_calendar_id;
+    $("#sf-target").value = editFlow.target_calendar_id;
+    $("#sf-ord").value = editFlow.ord;
+    $("#sf-enabled").checked = editFlow.enabled;
     const opts = editFlow.options_json ? JSON.parse(editFlow.options_json) : {};
     syncFormFromOptions(opts);
-    $('#sf-nl').value = optionsToNaturalLanguage(opts);
+    $("#sf-nl").value = optionsToNaturalLanguage(opts);
   }
 }
 
 async function handleSyncFlowSubmit(e) {
   e.preventDefault();
-  clearErrors('#sync-flows-content');
+  clearErrors("#sync-flows-content");
 
   const optionsJson = buildOptionsFromForm();
 
   const body = {
-    source_calendar_id: $('#sf-source').value,
-    target_calendar_id: $('#sf-target').value,
+    source_calendar_id: $("#sf-source").value,
+    target_calendar_id: $("#sf-target").value,
     options_json: optionsJson,
-    enabled: $('#sf-enabled').checked,
-    ord: Number($('#sf-ord').value) || 0,
+    enabled: $("#sf-enabled").checked,
+    ord: Number($("#sf-ord").value) || 0,
   };
 
   try {
     if (editingSyncFlowId) {
       await api(`/api/sync-flows/${editingSyncFlowId}`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify(body),
       });
       editingSyncFlowId = null;
     } else {
-      await api('/api/sync-flows', { method: 'POST', body: JSON.stringify(body) });
+      await api("/api/sync-flows", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
     }
-    $('#sync-flow-form').reset();
-    syncFlows = await api('/api/sync-flows');
+    $("#sync-flow-form").reset();
+    syncFlows = await api("/api/sync-flows");
     renderSyncFlows();
   } catch (err) {
-    showError(err.message, '#sync-flows-content');
+    showError(err.message, "#sync-flows-content");
   }
 }
 
 function toggleAdvancedOptions() {
-  const el = $('#sf-advanced');
-  const icon = $('#adv-toggle-icon');
-  const open = el.style.display !== 'none';
-  el.style.display = open ? 'none' : 'block';
-  icon.textContent = open ? '▼' : '▲';
+  const el = $("#sf-advanced");
+  const icon = $("#adv-toggle-icon");
+  const open = el.style.display !== "none";
+  el.style.display = open ? "none" : "block";
+  icon.textContent = open ? "▼" : "▲";
 }
 
 function buildOptionsFromForm() {
   const opts = {};
-  if ($('#sf-weekdays').checked) opts.weekdays_only = true;
-  if ($('#sf-workhours').checked) {
+  if ($("#sf-weekdays").checked) opts.weekdays_only = true;
+  if ($("#sf-workhours").checked) {
     opts.only_work_hours = true;
     opts.work_hours = {
-      start: $('#sf-work-start').value,
-      end: $('#sf-work-end').value,
+      start: $("#sf-work-start").value,
+      end: $("#sf-work-end").value,
     };
   }
-  if ($('#sf-private').checked) opts.mark_private = true;
-  if (!$('#sf-copy-title').checked) opts.copy_title = false;
-  if ($('#sf-copy-desc').checked) opts.copy_description = true;
-  const before = Number($('#sf-buffer-before').value) || 0;
-  const after = Number($('#sf-buffer-after').value) || 0;
+  if ($("#sf-private").checked) opts.mark_private = true;
+  if (!$("#sf-copy-title").checked) opts.copy_title = false;
+  if ($("#sf-copy-desc").checked) opts.copy_description = true;
+  const before = Number($("#sf-buffer-before").value) || 0;
+  const after = Number($("#sf-buffer-after").value) || 0;
   if (before > 0) opts.buffer_min_before = before;
   if (after > 0) opts.buffer_min_after = after;
   return Object.keys(opts).length ? opts : null;
@@ -766,19 +829,19 @@ function buildOptionsFromForm() {
 
 function syncFormFromOptions(opts) {
   opts = opts || {};
-  $('#sf-weekdays').checked = !!opts.weekdays_only;
-  $('#sf-workhours').checked = !!opts.only_work_hours;
-  $('#sf-private').checked = !!opts.mark_private;
-  $('#sf-copy-title').checked = opts.copy_title !== false;
-  $('#sf-copy-desc').checked = !!opts.copy_description;
-  $('#sf-work-start').value = opts.work_hours?.start || '09:00';
-  $('#sf-work-end').value = opts.work_hours?.end || '17:00';
-  $('#sf-buffer-before').value = opts.buffer_min_before || 0;
-  $('#sf-buffer-after').value = opts.buffer_min_after || 0;
+  $("#sf-weekdays").checked = !!opts.weekdays_only;
+  $("#sf-workhours").checked = !!opts.only_work_hours;
+  $("#sf-private").checked = !!opts.mark_private;
+  $("#sf-copy-title").checked = opts.copy_title !== false;
+  $("#sf-copy-desc").checked = !!opts.copy_description;
+  $("#sf-work-start").value = opts.work_hours?.start || "09:00";
+  $("#sf-work-end").value = opts.work_hours?.end || "17:00";
+  $("#sf-buffer-before").value = opts.buffer_min_before || 0;
+  $("#sf-buffer-after").value = opts.buffer_min_after || 0;
 }
 
 function handleNaturalLanguageInput() {
-  const text = $('#sf-nl').value.trim();
+  const text = $("#sf-nl").value.trim();
   if (!text) return;
   const opts = parseNaturalLanguage(text);
   syncFormFromOptions(opts);
@@ -786,36 +849,55 @@ function handleNaturalLanguageInput() {
 
 function syncNaturalLanguageFromForm() {
   const opts = buildOptionsFromForm();
-  $('#sf-nl').value = optionsToNaturalLanguage(opts);
+  $("#sf-nl").value = optionsToNaturalLanguage(opts);
 }
 
 function parseNaturalLanguage(text) {
   const opts = {};
   const t = text.toLowerCase();
 
-  if (/weekdays? only|monday through friday|business days?|week days? only/.test(t)) {
+  if (
+    /weekdays? only|monday through friday|business days?|week days? only/.test(
+      t,
+    )
+  ) {
     opts.weekdays_only = true;
   }
-  if (/work hours|business hours|working hours|9 to 5|9-5|during office hours/.test(t)) {
+  if (
+    /work hours|business hours|working hours|9 to 5|9-5|during office hours/.test(
+      t,
+    )
+  ) {
     opts.only_work_hours = true;
   }
   if (/mark as private|make private|set private|privacy/.test(t)) {
     opts.mark_private = true;
   }
-  if (/hide title|block time|show as busy|busy only|do not copy title|don't copy title/.test(t)) {
+  if (
+    /hide title|block time|show as busy|busy only|do not copy title|don't copy title/.test(
+      t,
+    )
+  ) {
     opts.copy_title = false;
   }
-  if (/copy title|keep title|original title/.test(t) && opts.copy_title !== false) {
+  if (
+    /copy title|keep title|original title/.test(t) &&
+    opts.copy_title !== false
+  ) {
     opts.copy_title = true;
   }
   if (/copy description|keep description|include description/.test(t)) {
     opts.copy_description = true;
   }
 
-  const beforeMatch = t.match(/(\d+)\s*(min|minute)s?\s*buffer\s*(before|prior|ahead)/);
+  const beforeMatch = t.match(
+    /(\d+)\s*(min|minute)s?\s*buffer\s*(before|prior|ahead)/,
+  );
   if (beforeMatch) opts.buffer_min_before = Number(beforeMatch[1]);
 
-  const afterMatch = t.match(/(\d+)\s*(min|minute)s?\s*buffer\s*(after|following)/);
+  const afterMatch = t.match(
+    /(\d+)\s*(min|minute)s?\s*buffer\s*(after|following)/,
+  );
   if (afterMatch) opts.buffer_min_after = Number(afterMatch[1]);
 
   const genericBuffer = t.match(/(\d+)\s*(min|minute)s?\s*buffer/);
@@ -823,7 +905,9 @@ function parseNaturalLanguage(text) {
     opts.buffer_min_before = Number(genericBuffer[1]);
   }
 
-  const timeRange = t.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*to\s*(\d{1,2}):?(\d{2})?\s*(am|pm)?/);
+  const timeRange = t.match(
+    /(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*to\s*(\d{1,2}):?(\d{2})?\s*(am|pm)?/,
+  );
   if (timeRange) {
     opts.work_hours = {
       start: formatTime(timeRange[1], timeRange[2], timeRange[3]),
@@ -837,42 +921,46 @@ function parseNaturalLanguage(text) {
 function formatTime(h, m, meridiem) {
   let hour = Number(h);
   const min = m ? Number(m) : 0;
-  if (meridiem === 'pm' && hour < 12) hour += 12;
-  if (meridiem === 'am' && hour === 12) hour = 0;
-  return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+  if (meridiem === "pm" && hour < 12) hour += 12;
+  if (meridiem === "am" && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
 function optionsToNaturalLanguage(opts) {
-  if (!opts || Object.keys(opts).length === 0) return '';
+  if (!opts || Object.keys(opts).length === 0) return "";
   const parts = [];
 
-  if (opts.weekdays_only) parts.push('Only sync weekdays');
+  if (opts.weekdays_only) parts.push("Only sync weekdays");
   if (opts.only_work_hours) {
-    const wh = opts.work_hours || { start: '09:00', end: '17:00' };
+    const wh = opts.work_hours || { start: "09:00", end: "17:00" };
     parts.push(`only during work hours (${wh.start}–${wh.end})`);
   }
 
   if (opts.copy_title === false) {
-    parts.push('hide the original title (show as blocked)');
+    parts.push("hide the original title (show as blocked)");
   } else {
-    parts.push('copy the original title');
+    parts.push("copy the original title");
   }
 
-  if (opts.copy_description) parts.push('copy the description');
-  if (opts.mark_private) parts.push('mark events as private');
+  if (opts.copy_description) parts.push("copy the description");
+  if (opts.mark_private) parts.push("mark events as private");
 
   if (opts.buffer_min_before && opts.buffer_min_after) {
-    parts.push(`add a ${opts.buffer_min_before}-minute buffer before and ${opts.buffer_min_after}-minute buffer after each event`);
+    parts.push(
+      `add a ${opts.buffer_min_before}-minute buffer before and ${opts.buffer_min_after}-minute buffer after each event`,
+    );
   } else if (opts.buffer_min_before) {
-    parts.push(`add a ${opts.buffer_min_before}-minute buffer before each event`);
+    parts.push(
+      `add a ${opts.buffer_min_before}-minute buffer before each event`,
+    );
   } else if (opts.buffer_min_after) {
     parts.push(`add a ${opts.buffer_min_after}-minute buffer after each event`);
   }
 
-  if (parts.length === 0) return '';
-  let sentence = parts.join('. ');
+  if (parts.length === 0) return "";
+  let sentence = parts.join(". ");
   sentence = sentence[0].toUpperCase() + sentence.slice(1);
-  if (!sentence.endsWith('.')) sentence += '.';
+  if (!sentence.endsWith(".")) sentence += ".";
   return sentence;
 }
 
@@ -887,59 +975,65 @@ function cancelEditSyncFlow() {
 }
 
 async function toggleSyncFlow(id, enabled) {
-  clearErrors('#sync-flows-content');
+  clearErrors("#sync-flows-content");
   try {
     await api(`/api/sync-flows/${id}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ enabled }),
     });
-    syncFlows = await api('/api/sync-flows');
+    syncFlows = await api("/api/sync-flows");
     renderSyncFlows();
   } catch (err) {
-    showError(err.message, '#sync-flows-content');
+    showError(err.message, "#sync-flows-content");
     renderSyncFlows();
   }
 }
 
 async function deleteSyncFlow(id) {
-  if (!confirm('Delete this sync flow?')) return;
-  clearErrors('#sync-flows-content');
+  if (!confirm("Delete this sync flow?")) return;
+  clearErrors("#sync-flows-content");
   try {
-    await api(`/api/sync-flows/${id}`, { method: 'DELETE' });
-    syncFlows = await api('/api/sync-flows');
+    await api(`/api/sync-flows/${id}`, { method: "DELETE" });
+    syncFlows = await api("/api/sync-flows");
     renderSyncFlows();
   } catch (err) {
-    showError(err.message, '#sync-flows-content');
+    showError(err.message, "#sync-flows-content");
   }
 }
 
 // ─── Event Types ───
 async function loadEventTypes() {
-  const container = $('#event-types-content');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading event types…</div>';
+  const container = $("#event-types-content");
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading event types…</div>';
 
   try {
     const [cals, types] = await Promise.all([
-      api('/api/calendars'),
-      api('/api/event-types'),
+      api("/api/calendars"),
+      api("/api/event-types"),
     ]);
     calendars = cals || [];
     eventTypes = types || [];
     renderEventTypes();
   } catch (err) {
-    if (err.message !== 'unauthorized') {
+    if (err.message !== "unauthorized") {
       container.innerHTML = `<div class="error-banner">Failed to load event types: ${escapeHtml(err.message)}</div>`;
     }
   }
 }
 
 function renderEventTypes() {
-  const container = $('#event-types-content');
+  const container = $("#event-types-content");
   clearErrors(container);
 
-  const calOptions = calendars.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)}</option>`).join('');
+  const calOptions = calendars
+    .map(
+      (c) =>
+        `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)}</option>`,
+    )
+    .join("");
 
-  let listHtml = '';
+  let listHtml = "";
   if (eventTypes.length === 0) {
     listHtml = `
       <div class="empty-state">
@@ -956,7 +1050,9 @@ function renderEventTypes() {
             <tr><th>Name</th><th>Slug</th><th>Duration</th><th>Target</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody>
-            ${eventTypes.map(et => `
+            ${eventTypes
+              .map(
+                (et) => `
               <tr data-id="${escapeHtml(et.id)}">
                 <td><strong>${escapeHtml(et.name)}</strong></td>
                 <td><code style="font-size:0.8rem;background:var(--cloud);padding:2px 6px;border-radius:4px;">${escapeHtml(et.slug)}</code></td>
@@ -970,7 +1066,9 @@ function renderEventTypes() {
                   </div>
                 </td>
               </tr>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </tbody>
         </table>
       </div>
@@ -978,7 +1076,9 @@ function renderEventTypes() {
   }
 
   const isEditing = editingEventTypeId !== null;
-  const editEt = isEditing ? eventTypes.find(e => e.id === editingEventTypeId) : null;
+  const editEt = isEditing
+    ? eventTypes.find((e) => e.id === editingEventTypeId)
+    : null;
 
   container.innerHTML = `
     <div class="card">
@@ -989,7 +1089,7 @@ function renderEventTypes() {
     </div>
 
     <div class="card">
-      <div class="card-title" style="margin-bottom:16px">${isEditing ? 'Edit Event Type' : 'Create Event Type'}</div>
+      <div class="card-title" style="margin-bottom:16px">${isEditing ? "Edit Event Type" : "Create Event Type"}</div>
       <form id="event-type-form" onsubmit="handleEventTypeSubmit(event)">
         <div class="form-row">
           <div class="form-group">
@@ -1021,11 +1121,7 @@ function renderEventTypes() {
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label for="et-weekdays">Weekdays Mask</label>
-            <input type="number" id="et-weekdays" value="31" min="0" max="127" title="Bitmask: Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64">
-          </div>
-          <div class="form-group">
-            <label for="et-location">Location Mode</label>
+            <label for="et-location">Location</label>
             <select id="et-location">
               <option value="meet">Google Meet</option>
               <option value="zoom">Zoom</option>
@@ -1043,8 +1139,29 @@ function renderEventTypes() {
           </div>
         </div>
         <div class="form-group">
-          <label for="et-work-hours">Work Hours JSON</label>
-          <textarea id="et-work-hours" placeholder='{"start":"09:00","end":"17:00"}' required></textarea>
+          <label>Available Days</label>
+          <div class="weekday-group" id="et-weekdays-group">
+            ${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+              .map(
+                (d, i) => `
+              <label class="weekday-check">
+                <input type="checkbox" data-day="${i}" ${i < 5 ? "checked" : ""}>
+                <span>${d}</span>
+              </label>
+            `,
+              )
+              .join("")}
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="et-work-start">Work Hours — From</label>
+            <input type="time" id="et-work-start" value="09:00" required>
+          </div>
+          <div class="form-group">
+            <label for="et-work-end">Work Hours — To</label>
+            <input type="time" id="et-work-end" value="17:00" required>
+          </div>
         </div>
         <div class="form-group" style="display:flex;align-items:center;gap:12px;">
           <label class="toggle" style="flex-shrink:0;">
@@ -1054,54 +1171,89 @@ function renderEventTypes() {
           <span style="font-size:0.9rem;color:var(--stone)">Enabled</span>
         </div>
         <div style="display:flex;gap:10px;">
-          <button type="submit" class="btn btn-primary">${isEditing ? 'Update' : 'Create'}</button>
-          ${isEditing ? `<button type="button" class="btn btn-secondary" onclick="cancelEditEventType()">Cancel</button>` : ''}
+          <button type="submit" class="btn btn-primary">${isEditing ? "Update" : "Create"}</button>
+          ${isEditing ? `<button type="button" class="btn btn-secondary" onclick="cancelEditEventType()">Cancel</button>` : ""}
         </div>
       </form>
     </div>
   `;
 
   if (editEt) {
-    $('#et-slug').value = editEt.slug;
-    $('#et-name').value = editEt.name;
-    $('#et-duration').value = editEt.duration_min;
-    $('#et-buffer').value = editEt.buffer_min;
-    $('#et-lead').value = editEt.lead_min;
-    $('#et-horizon').value = editEt.horizon_days;
-    $('#et-weekdays').value = editEt.weekdays_mask;
-    $('#et-location').value = editEt.location_mode;
-    $('#et-target').value = editEt.target_calendar_id;
-    $('#et-work-hours').value = editEt.work_hours_json;
-    $('#et-enabled').checked = editEt.enabled;
+    $("#et-slug").value = editEt.slug;
+    $("#et-name").value = editEt.name;
+    $("#et-duration").value = editEt.duration_min;
+    $("#et-buffer").value = editEt.buffer_min;
+    $("#et-lead").value = editEt.lead_min;
+    $("#et-horizon").value = editEt.horizon_days;
+    // Weekdays: bitmask -> checkboxes (Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64)
+    const mask = Number(editEt.weekdays_mask) || 0;
+    $$('#et-weekdays-group input[type="checkbox"]').forEach((cb) => {
+      const day = Number(cb.dataset.day);
+      cb.checked = (mask & (1 << day)) !== 0;
+    });
+    // Work hours: JSON -> two time inputs
+    try {
+      const wh = editEt.work_hours_json
+        ? JSON.parse(editEt.work_hours_json)
+        : { start: "09:00", end: "17:00" };
+      $("#et-work-start").value = wh.start || "09:00";
+      $("#et-work-end").value = wh.end || "17:00";
+    } catch {
+      $("#et-work-start").value = "09:00";
+      $("#et-work-end").value = "17:00";
+    }
+    $("#et-location").value = editEt.location_mode;
+    $("#et-target").value = editEt.target_calendar_id;
+    $("#et-enabled").checked = editEt.enabled;
   }
+}
+
+function readWeekdaysMask() {
+  let mask = 0;
+  $$('#et-weekdays-group input[type="checkbox"]').forEach((cb) => {
+    if (cb.checked) mask |= 1 << Number(cb.dataset.day);
+  });
+  return mask;
 }
 
 async function handleEventTypeSubmit(e) {
   e.preventDefault();
-  clearErrors('#event-types-content');
+  clearErrors("#event-types-content");
 
-  let workHours = null;
-  try { workHours = JSON.parse($('#et-work-hours').value.trim()); }
-  catch { showError('Work Hours JSON is invalid.', '#event-types-content'); return; }
+  const mask = readWeekdaysMask();
+  if (mask === 0) {
+    showError("Pick at least one available day.", "#event-types-content");
+    return;
+  }
+
+  const workStart = $("#et-work-start").value || "09:00";
+  const workEnd = $("#et-work-end").value || "17:00";
+  if (workStart >= workEnd) {
+    showError(
+      "Work hours: 'from' must be earlier than 'to'.",
+      "#event-types-content",
+    );
+    return;
+  }
 
   const body = {
-    slug: $('#et-slug').value.trim(),
-    name: $('#et-name').value.trim(),
-    duration_min: Number($('#et-duration').value),
-    buffer_min: Number($('#et-buffer').value) || 0,
-    lead_min: Number($('#et-lead').value) || 0,
-    horizon_days: Number($('#et-horizon').value) || 25,
-    weekdays_mask: Number($('#et-weekdays').value) || 31,
-    work_hours_json: JSON.stringify(workHours),
-    target_calendar_id: $('#et-target').value,
-    location_mode: $('#et-location').value,
-    enabled: $('#et-enabled').checked ? 1 : 0,
+    slug: $("#et-slug").value.trim(),
+    name: $("#et-name").value.trim(),
+    duration_min: Number($("#et-duration").value),
+    buffer_min: Number($("#et-buffer").value) || 0,
+    lead_min: Number($("#et-lead").value) || 0,
+    horizon_days: Number($("#et-horizon").value) || 25,
+    weekdays_mask: mask,
+    work_hours_json: JSON.stringify({ start: workStart, end: workEnd }),
+    target_calendar_id: $("#et-target").value,
+    location_mode: $("#et-location").value,
+    enabled: $("#et-enabled").checked ? 1 : 0,
   };
 
   try {
     if (editingEventTypeId) {
       // Only send changed fields for PATCH
-      const original = eventTypes.find(e => e.id === editingEventTypeId);
+      const original = eventTypes.find((e) => e.id === editingEventTypeId);
       const patchBody = {};
       for (const key of Object.keys(body)) {
         if (body[key] !== original[key]) patchBody[key] = body[key];
@@ -1112,18 +1264,21 @@ async function handleEventTypeSubmit(e) {
         return;
       }
       await api(`/api/event-types/${editingEventTypeId}`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify(patchBody),
       });
       editingEventTypeId = null;
     } else {
-      await api('/api/event-types', { method: 'POST', body: JSON.stringify(body) });
+      await api("/api/event-types", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
     }
-    $('#event-type-form').reset();
-    eventTypes = await api('/api/event-types');
+    $("#event-type-form").reset();
+    eventTypes = await api("/api/event-types");
     renderEventTypes();
   } catch (err) {
-    showError(err.message, '#event-types-content');
+    showError(err.message, "#event-types-content");
   }
 }
 
@@ -1138,37 +1293,38 @@ function cancelEditEventType() {
 }
 
 async function deleteEventType(id) {
-  if (!confirm('Delete this event type?')) return;
-  clearErrors('#event-types-content');
+  if (!confirm("Delete this event type?")) return;
+  clearErrors("#event-types-content");
   try {
-    await api(`/api/event-types/${id}`, { method: 'DELETE' });
-    eventTypes = await api('/api/event-types');
+    await api(`/api/event-types/${id}`, { method: "DELETE" });
+    eventTypes = await api("/api/event-types");
     renderEventTypes();
   } catch (err) {
-    showError(err.message, '#event-types-content');
+    showError(err.message, "#event-types-content");
   }
 }
 
 // ─── Bookings ───
 async function loadBookings() {
-  const container = $('#bookings-content');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading bookings…</div>';
+  const container = $("#bookings-content");
+  container.innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading bookings…</div>';
 
   try {
-    bookings = await api('/api/bookings');
+    bookings = await api("/api/bookings");
     renderBookings();
   } catch (err) {
-    if (err.message !== 'unauthorized') {
+    if (err.message !== "unauthorized") {
       container.innerHTML = `<div class="error-banner">Failed to load bookings: ${escapeHtml(err.message)}</div>`;
     }
   }
 }
 
 function renderBookings() {
-  const container = $('#bookings-content');
+  const container = $("#bookings-content");
   clearErrors(container);
 
-  let listHtml = '';
+  let listHtml = "";
   if (bookings.length === 0) {
     listHtml = `
       <div class="empty-state">
@@ -1185,15 +1341,19 @@ function renderBookings() {
             <tr><th>Subject</th><th>Attendee</th><th>Start</th><th>End</th><th>Status</th></tr>
           </thead>
           <tbody>
-            ${bookings.map(b => `
+            ${bookings
+              .map(
+                (b) => `
               <tr>
-                <td>${escapeHtml(b.subject || '—')}</td>
-                <td>${escapeHtml(b.attendee_name || '')} ${b.attendee_email ? `&lt;${escapeHtml(b.attendee_email)}&gt;` : '—'}</td>
+                <td>${escapeHtml(b.subject || "—")}</td>
+                <td>${escapeHtml(b.attendee_name || "")} ${b.attendee_email ? `&lt;${escapeHtml(b.attendee_email)}&gt;` : "—"}</td>
                 <td>${formatDate(b.start_ms)}</td>
                 <td>${formatDate(b.end_ms)}</td>
                 <td>${statusBadge(b.status)}</td>
               </tr>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </tbody>
         </table>
       </div>
@@ -1213,23 +1373,25 @@ function renderBookings() {
 // ─── Auth ───
 async function handleLogout() {
   try {
-    await api('/api/auth/logout', { method: 'POST' });
-  } catch (e) { /* ignore */ }
-  window.location.href = '/login';
+    await api("/api/auth/logout", { method: "POST" });
+  } catch (e) {
+    /* ignore */
+  }
+  window.location.href = "/login";
 }
 
 // ─── Mobile Menu ───
 function toggleSidebar() {
-  $('.sidebar').classList.toggle('open');
-  $('.sidebar-overlay').classList.toggle('open');
+  $(".sidebar").classList.toggle("open");
+  $(".sidebar-overlay").classList.toggle("open");
 }
 
 // ─── Init ───
 async function init() {
   try {
-    currentUser = await api('/api/auth/me');
+    currentUser = await api("/api/auth/me");
     renderUserInfo();
-    showTab('overview');
+    showTab("overview");
   } catch (err) {
     // 401 handled by api()
   }
