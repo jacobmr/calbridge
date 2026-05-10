@@ -11,11 +11,24 @@ let editingEventTypeId = null;
 let editingSyncFlowId = null;
 
 // Group context. When null, the dashboard shows the user's personal
-// scope (existing behavior). When a group is selected, future Phase 4
-// rendering will scope the merged view, calendars, etc. to it.
+// scope. When a group is selected (by clicking its sidebar entry),
+// the group-scoped tabs (group-schedule, group-settings) and API calls
+// use it as scope.
 let groups = [];
 let currentGroupId = null;
-const PERSONAL_LABEL = "Personal";
+
+// Shared empty-state for the (rare) case where a group-scoped page is
+// rendered without a current group — e.g. a user lands on group-schedule
+// after their last group was deleted. Normal navigation always sets
+// currentGroupId before showing these tabs.
+function noGroupSelectedHtml(verb) {
+  return `
+    <div class="card empty-hero">
+      <h2>No group selected</h2>
+      <p>Pick a group from the sidebar to ${verb}.</p>
+    </div>
+  `;
+}
 
 // ─── Helpers ───
 function $(sel) {
@@ -248,159 +261,91 @@ async function api(url, options = {}) {
   return data;
 }
 
-// ─── Group switcher ───
+// ─── Groups sidebar ───
 //
-// Hidden entirely when the user is in zero groups — "Personal" alone is
-// not a switch, just a default. Once any group exists, the switcher
-// appears in the top bar with "Personal" + each group + a "Create group"
-// link. Selecting a group sets currentGroupId; full merged-view rendering
-// lands in T4.5.
+// Each group the user belongs to gets its own section in the sidebar
+// with Schedule + Settings sub-entries. Zero groups: nothing renders
+// (group creation lives in the "What's next" overview card). One or
+// more: a divider, then a section per group, then a "+ Create group"
+// link at the bottom.
 async function loadGroups() {
   try {
     groups = (await api("/api/groups")) || [];
   } catch {
     groups = [];
   }
-  renderGroupSwitcher();
+  renderGroupsSection();
 }
 
-function renderGroupSwitcher() {
-  const el = $("#group-switcher");
+function renderGroupsSection() {
+  const el = $("#groups-section");
   if (!el) return;
 
   if (groups.length === 0) {
-    el.hidden = true;
     el.replaceChildren();
     return;
   }
-  el.hidden = false;
 
-  const current =
-    currentGroupId == null
-      ? PERSONAL_LABEL
-      : groups.find((g) => g.id === currentGroupId)?.name || PERSONAL_LABEL;
+  const frag = document.createDocumentFragment();
 
-  const wrap = document.createElement("div");
-  wrap.className = "switcher-wrap";
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "switcher-button";
-  button.setAttribute("aria-haspopup", "true");
-  button.setAttribute("aria-expanded", "false");
-  button.addEventListener("click", () => toggleSwitcherMenu());
-  button.innerHTML = `
-    <span class="switcher-label">${escapeHtml(current)}</span>
-    <span class="switcher-chevron">▾</span>
-  `;
-  wrap.appendChild(button);
-
-  const menu = document.createElement("div");
-  menu.className = "switcher-menu";
-  menu.id = "switcher-menu";
-  menu.hidden = true;
-
-  // Personal entry
-  const personal = document.createElement("button");
-  personal.type = "button";
-  personal.className =
-    "switcher-item" + (currentGroupId == null ? " active" : "");
-  personal.textContent = PERSONAL_LABEL;
-  personal.addEventListener("click", () => selectGroup(null));
-  menu.appendChild(personal);
+  const divider = document.createElement("div");
+  divider.className = "sidebar-divider";
+  frag.appendChild(divider);
 
   for (const g of groups) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className =
-      "switcher-item" + (currentGroupId === g.id ? " active" : "");
-    item.innerHTML = `
-      <span class="switcher-item-name">${escapeHtml(g.name)}</span>
-      <span class="switcher-item-meta">${g.type === "family" ? "Family" : "Team"} · ${g.member_count} member${g.member_count === 1 ? "" : "s"}</span>
-    `;
-    item.addEventListener("click", () => selectGroup(g.id));
-    menu.appendChild(item);
-  }
+    const section = document.createElement("div");
+    section.className =
+      "sidebar-group" + (currentGroupId === g.id ? " active" : "");
+    section.dataset.groupId = g.id;
 
-  const sep = document.createElement("div");
-  sep.className = "switcher-sep";
-  menu.appendChild(sep);
+    const header = document.createElement("div");
+    header.className = "sidebar-group-name";
+    header.textContent = g.name;
+    section.appendChild(header);
 
-  // "Manage" only makes sense when a real group is selected. Hidden in
-  // Personal mode (UX principle 2 — don't render an action that has no target).
-  if (currentGroupId != null) {
-    const manage = document.createElement("button");
-    manage.type = "button";
-    manage.className = "switcher-item";
-    manage.textContent = "Manage group";
-    manage.addEventListener("click", () => {
-      closeSwitcherMenu();
-      showTab("group-settings");
-    });
-    menu.appendChild(manage);
+    section.appendChild(makeGroupNavButton(g.id, "group-schedule", "Schedule"));
+    section.appendChild(makeGroupNavButton(g.id, "group-settings", "Settings"));
+
+    frag.appendChild(section);
   }
 
   const create = document.createElement("button");
   create.type = "button";
-  create.className = "switcher-item switcher-create";
+  create.className = "sidebar-create-group";
   create.textContent = "+ Create group";
-  create.addEventListener("click", () => {
-    closeSwitcherMenu();
-    openCreateGroupDialog();
-  });
-  menu.appendChild(create);
+  create.addEventListener("click", () => openCreateGroupDialog());
+  frag.appendChild(create);
 
-  wrap.appendChild(menu);
-  el.replaceChildren(wrap);
+  el.replaceChildren(frag);
 }
 
-function toggleSwitcherMenu() {
-  const menu = $("#switcher-menu");
-  const button = $("#group-switcher .switcher-button");
-  if (!menu || !button) return;
-  const willOpen = menu.hidden;
-  menu.hidden = !willOpen;
-  button.setAttribute("aria-expanded", String(willOpen));
-}
-
-function closeSwitcherMenu() {
-  const menu = $("#switcher-menu");
-  const button = $("#group-switcher .switcher-button");
-  if (menu) menu.hidden = true;
-  if (button) button.setAttribute("aria-expanded", "false");
-}
-
-// Click-outside to close.
-document.addEventListener("click", (e) => {
-  const wrap = e.target.closest?.(".switcher-wrap");
-  if (!wrap) closeSwitcherMenu();
-});
-
-function selectGroup(groupId) {
-  currentGroupId = groupId;
-  closeSwitcherMenu();
-  renderGroupSwitcher();
-  // Refresh the schedule nav item's visibility for the new context.
-  // We don't have fresh counts here — re-fetch overview to pick them up,
-  // but optimistically toggle the group-schedule button now so the user
-  // sees it appear immediately.
-  const sched = document.querySelector('.nav-item[data-tab="group-schedule"]');
-  if (sched) sched.style.display = currentGroupId != null ? "" : "none";
-
-  // If the user had been on group-schedule/group-settings and switched to
-  // Personal, those tabs no longer apply — kick back to Overview.
-  if (
-    currentGroupId == null &&
-    (currentTab === "group-schedule" || currentTab === "group-settings")
-  ) {
-    showTab("overview");
-  } else if (currentGroupId != null) {
-    // Default a fresh group selection to its merged schedule — that's
-    // the answer to "what's going on with my family right now?".
-    showTab("group-schedule");
-  } else {
-    showTab(currentTab);
+function makeGroupNavButton(groupId, tab, label) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "nav-item nav-subitem";
+  if (currentGroupId === groupId && currentTab === tab) {
+    btn.classList.add("active");
   }
+  btn.dataset.groupTab = `${groupId}:${tab}`;
+  btn.textContent = label;
+  btn.addEventListener("click", () => selectGroup(groupId, tab));
+  return btn;
+}
+
+function selectGroup(groupId, tab) {
+  currentGroupId = groupId;
+  if (groupId == null) {
+    // Caller cleared the active group (e.g. after deleting it). If the
+    // current tab is a group-only one, fall back to Overview; otherwise
+    // just re-render the sidebar and stay where we are.
+    renderGroupsSection();
+    if (currentTab === "group-schedule" || currentTab === "group-settings") {
+      showTab("overview");
+    }
+    return;
+  }
+  renderGroupsSection();
+  showTab(tab || "group-schedule");
 }
 
 // Real modal — replaces the v1 prompt/confirm pair, which was brittle on
@@ -511,12 +456,7 @@ let groupSettingsState = { detail: null, sharesData: null };
 async function loadGroupSettings() {
   const container = $("#group-settings-content");
   if (!currentGroupId) {
-    container.innerHTML = `
-      <div class="card empty-hero">
-        <h2>No group selected</h2>
-        <p>Pick a group from the switcher above to manage it.</p>
-      </div>
-    `;
+    container.innerHTML = noGroupSelectedHtml("manage it");
     return;
   }
   container.innerHTML =
@@ -1093,12 +1033,7 @@ function colorForMember(userId) {
 async function loadGroupSchedule() {
   const container = $("#group-schedule-content");
   if (!currentGroupId) {
-    container.innerHTML = `
-      <div class="card empty-hero">
-        <h2>No group selected</h2>
-        <p>Pick a group from the switcher above to see its schedule.</p>
-      </div>
-    `;
+    container.innerHTML = noGroupSelectedHtml("see its schedule");
     return;
   }
   container.innerHTML =
@@ -1437,8 +1372,6 @@ function applyNavVisibility(counts) {
     "sync-flows": counts.calendars > 0,
     "event-types": counts.calendars > 0,
     bookings: counts.eventTypes > 0 || counts.bookings > 0,
-    // Schedule is a group-only concept. Hidden in Personal mode.
-    "group-schedule": currentGroupId != null,
   };
   $$(".nav-item").forEach((btn) => {
     const t = btn.dataset.tab;
@@ -1465,9 +1398,27 @@ function applyNavVisibility(counts) {
 function showTab(tab) {
   currentTab = tab;
 
-  // Update nav active state
+  // Update nav active state. Per-group sub-items are tagged with
+  // data-group-tab="<groupId>:<tab>"; the static items use data-tab.
   $$(".nav-item").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === tab);
+    if (btn.dataset.groupTab) {
+      btn.classList.toggle(
+        "active",
+        btn.dataset.groupTab === `${currentGroupId}:${tab}`,
+      );
+    } else {
+      btn.classList.toggle("active", btn.dataset.tab === tab);
+    }
+  });
+  // Section-level highlight only when we're actually inside a group tab —
+  // otherwise the highlight gives a misleading "you're in this group" cue
+  // while the user is browsing personal Calendars/Bookings/etc.
+  const isGroupTab = tab === "group-schedule" || tab === "group-settings";
+  $$(".sidebar-group").forEach((s) => {
+    s.classList.toggle(
+      "active",
+      isGroupTab && s.dataset.groupId === currentGroupId,
+    );
   });
 
   // Hide all pages
@@ -1967,7 +1918,7 @@ function renderCalendars() {
       <div class="connect-wrap">
         <button class="btn btn-primary btn-sm" type="button" id="connect-toggle" aria-haspopup="true" aria-expanded="false" onclick="toggleConnectMenu()">
           ${icon("plus", 14)} Connect another account
-          <span class="switcher-chevron">▾</span>
+          <span class="dropdown-chevron">▾</span>
         </button>
         <div class="connect-menu" id="connect-menu" hidden>
           <a class="connect-item" href="/api/oauth/google/init">
@@ -3457,7 +3408,8 @@ async function init() {
   try {
     currentUser = await api("/api/auth/me");
     renderUserInfo();
-    // Kick off group load in parallel — switcher self-renders when ready.
+    // Kick off group load in parallel — sidebar groups section renders
+    // itself when /api/groups returns.
     loadGroups();
     checkPostOAuthRedirect();
     // Fire-and-forget — redeem completes asynchronously and re-renders.

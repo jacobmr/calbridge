@@ -158,14 +158,36 @@ test("sync engine creates → updates → deletes across runs", async () => {
   await db.execute({
     sql: `INSERT INTO oauth_accounts (id, tenant_id, user_id, provider, provider_account_id, email, refresh_token_enc, scopes, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [oauthId, tenantId, userId, "google", "acct-l", "l@e.com", encrypt("rt"), "", now],
+    args: [
+      oauthId,
+      tenantId,
+      userId,
+      "google",
+      "acct-l",
+      "l@e.com",
+      encrypt("rt"),
+      "",
+      now,
+    ],
   });
   await db.execute({
     sql: `INSERT INTO calendars (id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role)
           VALUES (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?)`,
     args: [
-      sourceCalId, tenantId, oauthId, "google", "src@l", "Source", "owner",
-      targetCalId, tenantId, oauthId, "google", "tgt@l", "Target", "owner",
+      sourceCalId,
+      tenantId,
+      oauthId,
+      "google",
+      "src@l",
+      "Source",
+      "owner",
+      targetCalId,
+      tenantId,
+      oauthId,
+      "google",
+      "tgt@l",
+      "Target",
+      "owner",
     ],
   });
   await db.execute({
@@ -181,7 +203,7 @@ test("sync engine creates → updates → deletes across runs", async () => {
       id: "evt-A",
       summary: "Original title",
       start: { dateTime: "2026-06-01T10:00:00Z" },
-      end:   { dateTime: "2026-06-01T11:00:00Z" },
+      end: { dateTime: "2026-06-01T11:00:00Z" },
     },
   ];
   // Target state — keyed by target id, value is the stored event payload.
@@ -191,16 +213,24 @@ test("sync engine creates → updates → deletes across runs", async () => {
   const sourceClient = {
     provider: "google",
     capabilities: { canWrite: true, canUpdate: true, canDelete: true },
-    async listCalendars() { return []; },
-    async listEvents() { return sourceEvents.map((e) => ({ ...e })); },
-    async createEvent() { throw new Error("source createEvent should not be called"); },
+    async listCalendars() {
+      return [];
+    },
+    async listEvents() {
+      return sourceEvents.map((e) => ({ ...e }));
+    },
+    async createEvent() {
+      throw new Error("source createEvent should not be called");
+    },
     async updateEvent() {},
     async deleteEvent() {},
   };
   const targetClient = {
     provider: "google",
     capabilities: { canWrite: true, canUpdate: true, canDelete: true },
-    async listCalendars() { return []; },
+    async listCalendars() {
+      return [];
+    },
     async listEvents() {
       // Echo stored events back as if read from the provider.
       return [...targetState.entries()].map(([id, evt]) => ({ id, ...evt }));
@@ -240,7 +270,11 @@ test("sync engine creates → updates → deletes across runs", async () => {
   const r3 = await runSyncFlow(flowId, { getProviderClient: factory });
   assert.equal(r3.created, 0);
   assert.equal(r3.updated, 1, "changed source should trigger update");
-  assert.equal(targetState.size, 1, "still one target — patched, not duplicated");
+  assert.equal(
+    targetState.size,
+    1,
+    "still one target — patched, not duplicated",
+  );
   const onlyTarget = [...targetState.values()][0];
   assert.equal(onlyTarget.summary, "New title");
 

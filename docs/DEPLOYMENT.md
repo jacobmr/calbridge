@@ -23,22 +23,22 @@
 
 All secrets are stored in the inventory repo and pushed to Vercel production.
 
-| Variable                 | Status       | Source                                               |
-| ------------------------ | ------------ | ---------------------------------------------------- |
-| `TURSO_DATABASE_URL`     | ✅ Set       | Turso dashboard                                      |
-| `TURSO_AUTH_TOKEN`       | ✅ Set       | Turso CLI (`turso db tokens create calbridge`)       |
-| `CALBRIDGE_DEK`          | ✅ Generated | `openssl rand -base64 32`                            |
-| `SESSION_SIGNING_KEY`    | ✅ Generated | `openssl rand -base64 32`                            |
-| `APP_BASE_URL`           | ✅ Set       | `https://www.mical.net`                              |
-| `CRON_SECRET`            | ✅ Generated | `openssl rand -base64 32`                            |
-| `INTERNAL_DISPATCH_HMAC` | ✅ Generated | `openssl rand -base64 32`                            |
-| `GOOGLE_CLIENT_ID`       | ❌ Waiting   | Google Cloud Console                                 |
-| `GOOGLE_CLIENT_SECRET`   | ❌ Waiting   | Google Cloud Console                                 |
-| `GOOGLE_REDIRECT_URI`    | ✅ Set       | `https://www.mical.net/api/oauth/google/callback`    |
-| `MS_CLIENT_ID`           | ❌ Empty     | Future (Microsoft OAuth)                             |
-| `MS_CLIENT_SECRET`       | ❌ Empty     | Future (Microsoft OAuth)                             |
-| `MS_REDIRECT_URI`        | ✅ Set       | `https://www.mical.net/api/oauth/microsoft/callback` |
-| `RESEND_API_KEY`         | ⚠️ Optional  | Resend dashboard. Without it, group invites fall back to copy-link. |
+| Variable                 | Status       | Source                                                                                                         |
+| ------------------------ | ------------ | -------------------------------------------------------------------------------------------------------------- |
+| `TURSO_DATABASE_URL`     | ✅ Set       | Turso dashboard                                                                                                |
+| `TURSO_AUTH_TOKEN`       | ✅ Set       | Turso CLI (`turso db tokens create calbridge`)                                                                 |
+| `CALBRIDGE_DEK`          | ✅ Generated | `openssl rand -base64 32`                                                                                      |
+| `SESSION_SIGNING_KEY`    | ✅ Generated | `openssl rand -base64 32`                                                                                      |
+| `APP_BASE_URL`           | ✅ Set       | `https://www.mical.net`                                                                                        |
+| `CRON_SECRET`            | ✅ Generated | `openssl rand -base64 32`                                                                                      |
+| `INTERNAL_DISPATCH_HMAC` | ✅ Generated | `openssl rand -base64 32`                                                                                      |
+| `GOOGLE_CLIENT_ID`       | ❌ Waiting   | Google Cloud Console                                                                                           |
+| `GOOGLE_CLIENT_SECRET`   | ❌ Waiting   | Google Cloud Console                                                                                           |
+| `GOOGLE_REDIRECT_URI`    | ✅ Set       | `https://www.mical.net/api/oauth/google/callback`                                                              |
+| `MS_CLIENT_ID`           | ❌ Empty     | Future (Microsoft OAuth)                                                                                       |
+| `MS_CLIENT_SECRET`       | ❌ Empty     | Future (Microsoft OAuth)                                                                                       |
+| `MS_REDIRECT_URI`        | ✅ Set       | `https://www.mical.net/api/oauth/microsoft/callback`                                                           |
+| `RESEND_API_KEY`         | ⚠️ Optional  | Resend dashboard. Without it, group invites fall back to copy-link.                                            |
 | `EMAIL_FROM`             | ⚠️ Optional  | e.g. `MiCal <invites@mical.net>` — domain must be verified in Resend. Defaults to `MiCal <noreply@mical.net>`. |
 
 ### Resend setup (one-time)

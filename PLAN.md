@@ -658,48 +658,48 @@ This is the same sync engine, but the target calendar belongs to a different use
   Working numbers (post-discussion, undercutting Calendly $10-16
   individual / $20+ team and matching/beating OneCal's $5-10):
 
-  *Free tier* (acquisition):
-    - 1 connected calendar
-    - 1 sync flow
-    - 1 booking page (event type)
-    - No groups
-    - "Sent with MiCal" footer on booking pages
+  _Free tier_ (acquisition):
+  - 1 connected calendar
+  - 1 sync flow
+  - 1 booking page (event type)
+  - No groups
+  - "Sent with MiCal" footer on booking pages
 
-  *Individual — $5/mo or $48/yr* (~20% annual discount):
-    - Unlimited calendars / sync flows / booking pages
-    - All sync rules (busy/full, prefix, work-hours)
-    - Removed branding footer
-    - Custom subdomain (jmr.mical.net) when shipped
+  _Individual — $5/mo or $48/yr_ (~20% annual discount):
+  - Unlimited calendars / sync flows / booking pages
+  - All sync rules (busy/full, prefix, work-hours)
+  - Removed branding footer
+  - Custom subdomain (jmr.mical.net) when shipped
 
-  *Family — $7/mo or $60/yr flat* (NOT per-seat):
-    - Everything in Individual for the family owner
-    - Up to 5 members in one family group; each gets the equivalent
-      of Individual for their own scope
-    - Cross-tenant push between members
-    - This is the differentiated tier — Google Family / iCloud Family
-      don't bridge providers; we do. $1.40/seat is below psychological
-      friction.
+  _Family — $7/mo or $60/yr flat_ (NOT per-seat):
+  - Everything in Individual for the family owner
+  - Up to 5 members in one family group; each gets the equivalent
+    of Individual for their own scope
+  - Cross-tenant push between members
+  - This is the differentiated tier — Google Family / iCloud Family
+    don't bridge providers; we do. $1.40/seat is below psychological
+    friction.
 
-  *Team — $5/seat/mo or $48/seat/yr* (agencies, small businesses):
-    - Per-seat. Unlimited team groups
-    - Group-scoped booking pages ("book time with our team")
-    - Admin role + audit log
-    - Different audience than Family — deductible business expense,
-      higher willingness to pay, justifies separate tier
+  _Team — $5/seat/mo or $48/seat/yr_ (agencies, small businesses):
+  - Per-seat. Unlimited team groups
+  - Group-scoped booking pages ("book time with our team")
+  - Admin role + audit log
+  - Different audience than Family — deductible business expense,
+    higher willingness to pay, justifies separate tier
 
-  *Original founder proposal was $2.50 / $7 / per-seat-team. Pushed
+  _Original founder proposal was $2.50 / $7 / per-seat-team. Pushed
   individual up to $5 for psychological positioning ("real product")
-  and to keep the per-month → per-seat-family math sensible.*
+  and to keep the per-month → per-seat-family math sensible._
 
   Open questions parked:
-    - Trial length (14d / 30d / freemium-forever)?
-    - Stripe Checkout vs Paddle (sales tax handling — Paddle's MoR
-      model offloads VAT/tax compliance globally, worth the ~5%)?
-    - Do family invitees who never use personal features still
-      count against the 5-seat cap? (Probably yes — keeps the
-      pricing model legible.)
-    - Lifetime deal as an early-bird signal? (TidyCal popularized
-      this for booking tools — ~$59-99 lifetime moves volume early.)
+  - Trial length (14d / 30d / freemium-forever)?
+  - Stripe Checkout vs Paddle (sales tax handling — Paddle's MoR
+    model offloads VAT/tax compliance globally, worth the ~5%)?
+  - Do family invitees who never use personal features still
+    count against the 5-seat cap? (Probably yes — keeps the
+    pricing model legible.)
+  - Lifetime deal as an early-bird signal? (TidyCal popularized
+    this for booking tools — ~$59-99 lifetime moves volume early.)
 
   Implementation when we get there: Stripe Checkout + customer portal
   for self-serve, webhooks → `tenants.plan_*` columns, feature gates
@@ -720,6 +720,25 @@ This is the same sync engine, but the target calendar belongs to a different use
 - **Invite-mode push approval.** `acceptance_mode='invite'` in
   `group_receive_settings` is parked — we honor `auto` and `block`
   but skip `invite` until the approval flow exists.
+- **Meeting polls (Doodle / Calendly Poll competitor).** Organizer
+  proposes N candidate slots; invitees pick the ones that work; system
+  picks the winner (best fit, or organizer-confirmed) and sends an
+  invite. The differentiator over Calendly/Doodle: a respondent who
+  has connected their calendar via MiCal (free tier) sees each
+  proposed slot pre-marked free/busy from their actual availability.
+  Response collapses to: open link → (if not signed in) one-tap OAuth
+  → review pre-checked slots → submit. Long-term: any subsequent
+  poll the same person receives auto-populates from the same OAuth
+  grant. Goal is to make signing up to MiCal feel like a free upgrade
+  to every meeting poll they ever respond to — and a viral acquisition
+  channel because organizers see "12 of 15 respondents resolved
+  conflicts via MiCal" in the result. Pricing: free for respondents
+  (acquisition); polls themselves are an Individual-tier feature for
+  organizers. Build sketch: `polls`, `poll_options`, `poll_responses`
+  tables; reuse the availability engine that powers booking page
+  free/busy; new public page at `/poll/:token`. Out-of-scope until
+  v2 — list here for visibility and so the calendar-connect onboarding
+  is designed with this flow in mind.
 
 ---
 

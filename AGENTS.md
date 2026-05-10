@@ -45,19 +45,19 @@ The codebase is intentionally small and self-contained. It runs as **Vercel serv
 
 Copy `.env.example` to `.env` for local development. The following variables are required at runtime:
 
-| Variable | Purpose |
-|---|---|
-| `TURSO_DATABASE_URL` | libSQL database URL (e.g. `file:./.calbridge.db` locally, or a `libsql://` URL for Turso) |
-| `TURSO_AUTH_TOKEN` | Auth token for remote Turso databases (omit for local file) |
-| `CALBRIDGE_DEK` | Base64-encoded 32-byte AES data-encryption key for token storage |
-| `SESSION_SIGNING_KEY` | Base64-encoded 32-byte HMAC key for session cookies |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 credentials |
-| `GOOGLE_REDIRECT_URI` | Must match the registered redirect URI (default: `https://mical.net/api/oauth/google/callback`) |
-| `MS_CLIENT_ID` / `MS_CLIENT_SECRET` | Microsoft Graph OAuth credentials |
-| `MS_REDIRECT_URI` | Microsoft OAuth callback (default: `https://mical.net/api/oauth/microsoft/callback`) |
-| `APP_BASE_URL` | Canonical base URL of the deployment (default: `https://mical.net`) |
-| `CRON_SECRET` | Shared secret for invoking cron/background endpoints |
-| `INTERNAL_DISPATCH_HMAC` | HMAC secret for internal service-to-service dispatch |
+| Variable                                    | Purpose                                                                                         |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `TURSO_DATABASE_URL`                        | libSQL database URL (e.g. `file:./.calbridge.db` locally, or a `libsql://` URL for Turso)       |
+| `TURSO_AUTH_TOKEN`                          | Auth token for remote Turso databases (omit for local file)                                     |
+| `CALBRIDGE_DEK`                             | Base64-encoded 32-byte AES data-encryption key for token storage                                |
+| `SESSION_SIGNING_KEY`                       | Base64-encoded 32-byte HMAC key for session cookies                                             |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 credentials                                                                    |
+| `GOOGLE_REDIRECT_URI`                       | Must match the registered redirect URI (default: `https://mical.net/api/oauth/google/callback`) |
+| `MS_CLIENT_ID` / `MS_CLIENT_SECRET`         | Microsoft Graph OAuth credentials                                                               |
+| `MS_REDIRECT_URI`                           | Microsoft OAuth callback (default: `https://mical.net/api/oauth/microsoft/callback`)            |
+| `APP_BASE_URL`                              | Canonical base URL of the deployment (default: `https://mical.net`)                             |
+| `CRON_SECRET`                               | Shared secret for invoking cron/background endpoints                                            |
+| `INTERNAL_DISPATCH_HMAC`                    | HMAC secret for internal service-to-service dispatch                                            |
 
 ## Build and Development Commands
 

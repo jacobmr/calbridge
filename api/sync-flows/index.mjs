@@ -92,7 +92,9 @@ async function listSyncFlows(req, res) {
     target_calendar_label: row.target_calendar_label,
     last_run_at: row.last_run_at != null ? Number(row.last_run_at) : null,
     last_run_finished_at:
-      row.last_run_finished_at != null ? Number(row.last_run_finished_at) : null,
+      row.last_run_finished_at != null
+        ? Number(row.last_run_finished_at)
+        : null,
     last_run_ok: row.last_run_ok != null ? row.last_run_ok === 1 : null,
     last_run_totals: row.last_run_totals_json
       ? safeParseJson(row.last_run_totals_json)

@@ -1,21 +1,21 @@
-import { randomUUID } from 'node:crypto';
-import { getDb } from '../../db/client.mjs';
-import { requireUser } from '../../lib/session.mjs';
-import { getValidAccessToken, listGoogleCalendars } from '../../lib/google.mjs';
+import { randomUUID } from "node:crypto";
+import { getDb } from "../../db/client.mjs";
+import { requireUser } from "../../lib/session.mjs";
+import { getValidAccessToken, listGoogleCalendars } from "../../lib/google.mjs";
 
 async function getTenantForUser(db, userId) {
   const r = await db.execute({
-    sql: 'SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1',
+    sql: "SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1",
     args: [userId],
   });
   return r.rows[0] || null;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
+  if (req.method !== "GET") {
     res.statusCode = 405;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'method not allowed' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "method not allowed" }));
     return;
   }
 
@@ -24,14 +24,14 @@ export default async function handler(req, res) {
     const db = getDb();
     const tenant = await getTenantForUser(db, user.id);
     if (!tenant) {
-      const err = new Error('tenant not found');
+      const err = new Error("tenant not found");
       err.statusCode = 404;
       throw err;
     }
 
     const oauthRows = await db.execute({
-      sql: 'SELECT id, tenant_id, refresh_token_enc, access_token_enc, access_token_expires_at FROM oauth_accounts WHERE tenant_id = ? AND provider = ?',
-      args: [tenant.id, 'google'],
+      sql: "SELECT id, tenant_id, refresh_token_enc, access_token_enc, access_token_expires_at FROM oauth_accounts WHERE tenant_id = ? AND provider = ?",
+      args: [tenant.id, "google"],
     });
 
     const synced = [];
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
             calId,
             tenant.id,
             acct.id,
-            'google',
+            "google",
             gcal.id,
             gcal.summary,
             gcal.accessRole,
@@ -61,8 +61,8 @@ export default async function handler(req, res) {
         });
 
         const existing = await db.execute({
-          sql: 'SELECT id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role, enabled FROM calendars WHERE tenant_id = ? AND provider = ? AND provider_calendar_id = ?',
-          args: [tenant.id, 'google', gcal.id],
+          sql: "SELECT id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role, enabled FROM calendars WHERE tenant_id = ? AND provider = ? AND provider_calendar_id = ?",
+          args: [tenant.id, "google", gcal.id],
         });
         if (existing.rows[0]) {
           synced.push(existing.rows[0]);
@@ -70,11 +70,11 @@ export default async function handler(req, res) {
       }
     }
 
-    res.setHeader('content-type', 'application/json');
+    res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(synced));
   } catch (err) {
     res.statusCode = err.statusCode || 500;
-    res.setHeader('content-type', 'application/json');
+    res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: err.message }));
   }
 }

@@ -4,9 +4,10 @@
 
 **MiCal** is the calendar infrastructure for professionals who live across multiple calendar systems. We don't replace your calendars — we connect them, sync them, and make them work together.
 
-**Tagline:** *Your calendars. One bridge. Zero conflicts.*
+**Tagline:** _Your calendars. One bridge. Zero conflicts._
 
 **Elevator Pitch:**
+
 > MiCal connects Google Calendar, Outlook, and ICS feeds into a single, synchronized system. Set up sync rules once, and your events flow automatically between calendars. Plus, create public booking pages so clients can schedule with you without the back-and-forth.
 
 ---
@@ -14,6 +15,7 @@
 ## Target Audience
 
 **Primary:** Independent professionals and small agencies who manage calendars for themselves and clients.
+
 - Consultants juggling personal + client calendars
 - Agencies syncing team calendars across client Google Workspace tenants
 - Service providers (coaches, therapists, lawyers) who need public booking pages
@@ -47,12 +49,15 @@
 ## Messaging Pillars
 
 ### Pillar 1: Stop Double-Booking Yourself
+
 > You have a meeting in Google Calendar. Your Outlook says you're free. Your client books that slot. MiCal syncs your availability across all calendars so this never happens.
 
 ### Pillar 2: Set Rules, Forget Maintenance
+
 > "Copy all events from Calendar A to Calendar B, but only during work hours, and block 15 minutes before and after." Set it once. It runs forever.
 
 ### Pillar 3: Let Clients Book Themselves
+
 > Stop emailing "what about Tuesday at 3?" Share your booking page. They pick a time. It lands on your calendar. Done.
 
 ---
@@ -62,6 +67,7 @@
 **Metaphor:** A bridge. Connection. Flow. Two sides coming together.
 
 **Color Palette:**
+
 - Primary: `#0F4C81` (Bridge Blue) — trust, stability, depth
 - Accent: `#00C2A8` (Flow Teal) — movement, success, action
 - Neutral: `#F5F7FA` (Cloud) — backgrounds, breathing room
@@ -69,17 +75,20 @@
 - Subtle: `#718096` (Stone) — secondary text, borders
 
 **Typography:**
+
 - Headlines: Clean sans-serif, bold weight, tight line-height (e.g., Inter, Geist)
 - Body: Same family, regular weight, comfortable line-height
 - Monospace for code/technical details
 
 **Imagery:**
+
 - Abstract bridge/architecture photography
 - Clean calendar UI mockups
 - People in flow state (not "stressed at laptop")
 - Avoid: stock photos of people in meetings looking bored
 
 **UI Patterns:**
+
 - Rounded corners (8-12px) — friendly but not childish
 - Subtle shadows — depth without skeuomorphism
 - Generous whitespace — premium feel
@@ -90,6 +99,7 @@
 ## Naming Rationale
 
 **Cal** (calendar) + **bridge** (connection)
+
 - Immediately communicates function
 - Memorable, pronounceable, spellable
 - Available domain space (mical.net as primary, calbridge.io as ideal)
@@ -99,15 +109,15 @@
 
 ## Competitive Differentiation
 
-|  | Calendly | Reclaim.ai | MiCal |
-|---|---|---|---|
-| Multi-provider sync | ❌ | Limited | ✅ Native |
-| Sync *rules* (filters, transforms) | ❌ | Basic | ✅ Advanced |
-| Public booking | ✅ | ✅ | ✅ |
-| Multi-tenant workspaces | ❌ | ❌ | ✅ |
-| Self-hostable / API-first | ❌ | ❌ | ✅ (future) |
+|                                    | Calendly | Reclaim.ai | MiCal       |
+| ---------------------------------- | -------- | ---------- | ----------- |
+| Multi-provider sync                | ❌       | Limited    | ✅ Native   |
+| Sync _rules_ (filters, transforms) | ❌       | Basic      | ✅ Advanced |
+| Public booking                     | ✅       | ✅         | ✅          |
+| Multi-tenant workspaces            | ❌       | ❌         | ✅          |
+| Self-hostable / API-first          | ❌       | ❌         | ✅ (future) |
 
-**Angle:** Calendly is for *scheduling.* Reclaim is for *time blocking.* MiCal is for *calendar infrastructure* — sync, bridge, and expose.
+**Angle:** Calendly is for _scheduling._ Reclaim is for _time blocking._ MiCal is for _calendar infrastructure_ — sync, bridge, and expose.
 
 ---
 
@@ -128,4 +138,4 @@
 
 ---
 
-*Last updated: 2026-05-09*
+_Last updated: 2026-05-09_

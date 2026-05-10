@@ -31,32 +31,6 @@
         </div>
 
         <nav class="sidebar-nav">
-          <!-- Group schedule appears here at the top when a group is selected.
-               Hidden by default; applyNavVisibility flips it on. -->
-          <button
-            class="nav-item"
-            data-tab="group-schedule"
-            onclick="showTab('group-schedule')"
-            style="display: none"
-          >
-            <span class="nav-icon"
-              ><svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="3" y="4.5" width="18" height="16" rx="2" />
-                <path d="M3 9h18M8 2.5v4M16 2.5v4" />
-                <path d="M8 14h2M12 14h2M16 14h2" /></svg
-            ></span>
-            Schedule
-          </button>
           <button
             class="nav-item active"
             data-tab="overview"
@@ -174,6 +148,10 @@
             ></span>
             Bookings
           </button>
+
+          <!-- Per-group sidebar entries. Populated by renderGroupsSection()
+               once /api/groups returns. Empty when the user has zero groups. -->
+          <div id="groups-section" class="groups-section"></div>
         </nav>
 
         <div class="sidebar-footer">
@@ -225,9 +203,6 @@
             </svg>
           </button>
           <h1 id="page-title">Dashboard</h1>
-          <!-- Group switcher mounts here when the user has ≥1 group. Hidden
-               by default; populated by renderGroupSwitcher() after groups load. -->
-          <div id="group-switcher" class="group-switcher" hidden></div>
         </header>
 
         <div class="page-content">

@@ -1,20 +1,20 @@
-import { randomUUID } from 'node:crypto';
-import { getDb } from '../../db/client.mjs';
-import { requireUser } from '../../lib/session.mjs';
+import { randomUUID } from "node:crypto";
+import { getDb } from "../../db/client.mjs";
+import { requireUser } from "../../lib/session.mjs";
 
 async function getTenantForUser(db, userId) {
   const r = await db.execute({
-    sql: 'SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1',
+    sql: "SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1",
     args: [userId],
   });
   return r.rows[0] || null;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
+  if (req.method !== "POST") {
     res.statusCode = 405;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'method not allowed' }));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: "method not allowed" }));
     return;
   }
 
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     const db = getDb();
     const tenant = await getTenantForUser(db, user.id);
     if (!tenant) {
-      const err = new Error('tenant not found');
+      const err = new Error("tenant not found");
       err.statusCode = 404;
       throw err;
     }
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     const body = await readJson(req);
     const selections = body.selections || [];
     if (!Array.isArray(selections) || selections.length === 0) {
-      const err = new Error('selections array required');
+      const err = new Error("selections array required");
       err.statusCode = 400;
       throw err;
     }
@@ -39,11 +39,17 @@ export default async function handler(req, res) {
     const imported = [];
 
     for (const sel of selections) {
-      const { oauthAccountId, providerCalendarId, summary, description, accessRole } = sel;
+      const {
+        oauthAccountId,
+        providerCalendarId,
+        summary,
+        description,
+        accessRole,
+      } = sel;
 
       // Validate ownership
       const acctCheck = await db.execute({
-        sql: 'SELECT id, tenant_id, provider FROM oauth_accounts WHERE id = ? AND tenant_id = ?',
+        sql: "SELECT id, tenant_id, provider FROM oauth_accounts WHERE id = ? AND tenant_id = ?",
         args: [oauthAccountId, tenant.id],
       });
       if (!acctCheck.rows[0]) {
@@ -65,14 +71,14 @@ export default async function handler(req, res) {
           oauthAccountId,
           provider,
           providerCalendarId,
-          summary || 'Untitled',
-          accessRole || 'owner',
+          summary || "Untitled",
+          accessRole || "owner",
           1,
         ],
       });
 
       const existing = await db.execute({
-        sql: 'SELECT id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role, enabled FROM calendars WHERE tenant_id = ? AND provider = ? AND provider_calendar_id = ?',
+        sql: "SELECT id, tenant_id, oauth_account_id, provider, provider_calendar_id, label, role, enabled FROM calendars WHERE tenant_id = ? AND provider = ? AND provider_calendar_id = ?",
         args: [tenant.id, provider, providerCalendarId],
       });
       if (existing.rows[0]) {
@@ -80,24 +86,26 @@ export default async function handler(req, res) {
       }
     }
 
-    res.setHeader('content-type', 'application/json');
+    res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ imported }));
   } catch (err) {
     res.statusCode = err.statusCode || 500;
-    res.setHeader('content-type', 'application/json');
+    res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: err.message }));
   }
 }
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', (chunk) => { data += chunk; });
-    req.on('end', () => {
+    let data = "";
+    req.on("data", (chunk) => {
+      data += chunk;
+    });
+    req.on("end", () => {
       try {
         resolve(JSON.parse(data));
       } catch {
-        reject(new Error('invalid json'));
+        reject(new Error("invalid json"));
       }
     });
   });

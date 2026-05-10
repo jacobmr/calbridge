@@ -1,75 +1,175 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy — MiCal</title>
-  <link rel="stylesheet" href="/style.css">
-  <style>
-    .legal-page { background: var(--white); padding: 60px 0; }
-    .legal-page .container { max-width: 800px; }
-    .legal-page h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 12px; color: var(--bridge-blue); }
-    .legal-page .updated { color: var(--stone); font-size: 0.9rem; margin-bottom: 40px; }
-    .legal-page h2 { font-size: 1.4rem; font-weight: 700; margin: 40px 0 16px; color: var(--charcoal); }
-    .legal-page p, .legal-page li { color: var(--stone); line-height: 1.7; margin-bottom: 12px; }
-    .legal-page ul { margin-left: 24px; margin-bottom: 16px; }
-    .legal-page strong { color: var(--charcoal); }
-    .legal-page a { color: var(--bridge-blue); }
-  </style>
-</head>
-<body>
-  <nav>
-    <div class="container nav-inner">
-      <a href="/" class="logo"><img src="/logo.svg" alt="" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;border-radius:8px;">Mi<span>Cal</span></a>
-      <div class="nav-links">
-        <a href="/">Home</a>
-        <a href="/terms">Terms</a>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy — MiCal</title>
+    <link rel="stylesheet" href="/style.css" />
+    <style>
+      .legal-page {
+        background: var(--white);
+        padding: 60px 0;
+      }
+      .legal-page .container {
+        max-width: 800px;
+      }
+      .legal-page h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 12px;
+        color: var(--bridge-blue);
+      }
+      .legal-page .updated {
+        color: var(--stone);
+        font-size: 0.9rem;
+        margin-bottom: 40px;
+      }
+      .legal-page h2 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin: 40px 0 16px;
+        color: var(--charcoal);
+      }
+      .legal-page p,
+      .legal-page li {
+        color: var(--stone);
+        line-height: 1.7;
+        margin-bottom: 12px;
+      }
+      .legal-page ul {
+        margin-left: 24px;
+        margin-bottom: 16px;
+      }
+      .legal-page strong {
+        color: var(--charcoal);
+      }
+      .legal-page a {
+        color: var(--bridge-blue);
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="container nav-inner">
+        <a href="/" class="logo"
+          ><img
+            src="/logo.svg"
+            alt=""
+            style="
+              width: 32px;
+              height: 32px;
+              vertical-align: middle;
+              margin-right: 8px;
+              border-radius: 8px;
+            "
+          />Mi<span>Cal</span></a
+        >
+        <div class="nav-links">
+          <a href="/">Home</a>
+          <a href="/terms">Terms</a>
+        </div>
       </div>
-    </div>
-  </nav>
+    </nav>
 
-  <section class="legal-page">
-    <div class="container">
-      <h1>Privacy Policy</h1>
-      <p class="updated">Last updated: May 9, 2026</p>
+    <section class="legal-page">
+      <div class="container">
+        <h1>Privacy Policy</h1>
+        <p class="updated">Last updated: May 9, 2026</p>
 
-      <h2>Overview</h2>
-      <p>MiCal ("we," "our," or "us") is a calendar bridging service that connects multiple calendar providers to help you synchronize events and manage scheduling. We take your privacy seriously. This policy explains what data we collect, how we use it, and how we protect it.</p>
+        <h2>Overview</h2>
+        <p>
+          MiCal ("we," "our," or "us") is a calendar bridging service that
+          connects multiple calendar providers to help you synchronize events
+          and manage scheduling. We take your privacy seriously. This policy
+          explains what data we collect, how we use it, and how we protect it.
+        </p>
 
-      <h2>What We Collect</h2>
-      <p><strong>Account Information:</strong> When you sign up via Google or Microsoft OAuth, we receive your email address, name, and profile information from the provider. We use this to create your account and identify you.</p>
-      <p><strong>Calendar Data:</strong> With your explicit permission, we access calendar event metadata (titles, times, locations, attendees) to perform synchronization. We do not read the content of event descriptions unless necessary for sync operations.</p>
-      <p><strong>OAuth Tokens:</strong> We store encrypted refresh and access tokens for connecting to your calendar providers. These are encrypted at rest using AES-256-GCM encryption.</p>
-      <p><strong>Usage Data:</strong> We collect basic operational data such as sync run logs, error reports, and API request timestamps to maintain service reliability.</p>
+        <h2>What We Collect</h2>
+        <p>
+          <strong>Account Information:</strong> When you sign up via Google or
+          Microsoft OAuth, we receive your email address, name, and profile
+          information from the provider. We use this to create your account and
+          identify you.
+        </p>
+        <p>
+          <strong>Calendar Data:</strong> With your explicit permission, we
+          access calendar event metadata (titles, times, locations, attendees)
+          to perform synchronization. We do not read the content of event
+          descriptions unless necessary for sync operations.
+        </p>
+        <p>
+          <strong>OAuth Tokens:</strong> We store encrypted refresh and access
+          tokens for connecting to your calendar providers. These are encrypted
+          at rest using AES-256-GCM encryption.
+        </p>
+        <p>
+          <strong>Usage Data:</strong> We collect basic operational data such as
+          sync run logs, error reports, and API request timestamps to maintain
+          service reliability.
+        </p>
 
-      <h2>How We Use Your Data</h2>
-      <ul>
-        <li>To synchronize events between your connected calendars according to your configured rules</li>
-        <li>To power public booking pages that you choose to create and share</li>
-        <li>To send operational notifications (sync failures, account issues)</li>
-        <li>To improve service performance and reliability</li>
-      </ul>
-      <p>We do <strong>not</strong> sell your data. We do <strong>not</strong> use your calendar data for advertising. We do <strong>not</strong> train AI models on your data.</p>
+        <h2>How We Use Your Data</h2>
+        <ul>
+          <li>
+            To synchronize events between your connected calendars according to
+            your configured rules
+          </li>
+          <li>
+            To power public booking pages that you choose to create and share
+          </li>
+          <li>
+            To send operational notifications (sync failures, account issues)
+          </li>
+          <li>To improve service performance and reliability</li>
+        </ul>
+        <p>
+          We do <strong>not</strong> sell your data. We do
+          <strong>not</strong> use your calendar data for advertising. We do
+          <strong>not</strong> train AI models on your data.
+        </p>
 
-      <h2>Data Storage & Security</h2>
-      <p>Your data is stored in Turso (libSQL) databases with encryption at rest. OAuth tokens are encrypted with AES-256-GCM using keys stored separately from the database. Sessions are secured with HMAC-signed cookies.</p>
-      <p>All data transmission occurs over TLS (HTTPS). We use timing-safe comparisons for authentication checks.</p>
+        <h2>Data Storage & Security</h2>
+        <p>
+          Your data is stored in Turso (libSQL) databases with encryption at
+          rest. OAuth tokens are encrypted with AES-256-GCM using keys stored
+          separately from the database. Sessions are secured with HMAC-signed
+          cookies.
+        </p>
+        <p>
+          All data transmission occurs over TLS (HTTPS). We use timing-safe
+          comparisons for authentication checks.
+        </p>
 
-      <h2>Third-Party Services</h2>
-      <p>We integrate with Google Calendar and Microsoft Outlook. Your use of these services is governed by their respective privacy policies. We only request the minimum scopes necessary for calendar synchronization.</p>
+        <h2>Third-Party Services</h2>
+        <p>
+          We integrate with Google Calendar and Microsoft Outlook. Your use of
+          these services is governed by their respective privacy policies. We
+          only request the minimum scopes necessary for calendar
+          synchronization.
+        </p>
 
-      <h2>Your Rights</h2>
-      <p>You may disconnect calendar integrations, delete your account, or request a copy of your data at any time by contacting us. Account deletion removes all personal data within 30 days.</p>
+        <h2>Your Rights</h2>
+        <p>
+          You may disconnect calendar integrations, delete your account, or
+          request a copy of your data at any time by contacting us. Account
+          deletion removes all personal data within 30 days.
+        </p>
 
-      <h2>Contact</h2>
-      <p>For privacy questions or data requests, contact: <a href="mailto:privacy@mical.net">privacy@mical.net</a></p>
-    </div>
-  </section>
+        <h2>Contact</h2>
+        <p>
+          For privacy questions or data requests, contact:
+          <a href="mailto:privacy@mical.net">privacy@mical.net</a>
+        </p>
+      </div>
+    </section>
 
-  <footer>
-    <div class="container">
-      <p><strong style="color: white;">MiCal</strong> — Calendar infrastructure for modern professionals.</p>
-    </div>
-  </footer>
-</body>
+    <footer>
+      <div class="container">
+        <p>
+          <strong style="color: white">MiCal</strong> — Calendar infrastructure
+          for modern professionals.
+        </p>
+      </div>
+    </footer>
+  </body>
 </html>
