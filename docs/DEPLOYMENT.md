@@ -127,24 +127,14 @@ Clean URLs are enabled via `vercel.json` — all `.html` extensions are stripped
 
 ---
 
-## Google OAuth Configuration
+## OAuth Configuration
 
-### OAuth Consent Screen
+See **[`docs/OAUTH-SETUP.md`](OAUTH-SETUP.md)** for the canonical, up-to-date setup
+guide covering both Google and Microsoft: scope lists with rationale, console
+setup steps, verification path, and the re-consent flow when scopes change.
 
-| Field                | Value                                                     |
-| -------------------- | --------------------------------------------------------- |
-| App name             | `MiCal`                                                   |
-| User support email   | `support@mical.net`                                       |
-| App logo             | `https://www.mical.net/logo.svg` (convert to PNG 120×120) |
-| App domain           | `www.mical.net`                                           |
-| Authorized domains   | `www.mical.net`, `mical.net`                              |
-| Privacy Policy URL   | `https://www.mical.net/privacy`                           |
-| Terms of Service URL | `https://www.mical.net/terms`                             |
-| Developer contact    | `jacob@salundo.com`                                       |
-
-### Authorized Redirect URIs
-
-Add both to your OAuth 2.0 Client ID:
+Quick reference for the Google redirect URIs (must both be authorized in the
+OAuth Client ID configuration):
 
 ```
 https://www.mical.net/api/oauth/google/callback
