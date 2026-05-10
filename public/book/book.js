@@ -3,10 +3,12 @@
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
+// Accept either ?host= (new, what we now generate) or ?tenant= (legacy —
+// any link minted before the rename still works forever).
 function getParams() {
   const u = new URL(window.location.href);
   return {
-    tenant: u.searchParams.get("tenant") || "",
+    host: u.searchParams.get("host") || u.searchParams.get("tenant") || "",
     event: u.searchParams.get("event") || "",
   };
 }
@@ -43,12 +45,12 @@ let selectedDate = null;
 let selectedSlot = null;
 
 async function loadConfig() {
-  const { tenant, event } = getParams();
-  if (!tenant || !event) {
-    throw new Error("Missing tenant or event in URL");
+  const { host, event } = getParams();
+  if (!host || !event) {
+    throw new Error("Missing host or event in URL");
   }
   const res = await fetch(
-    `/api/book/public?tenant=${encodeURIComponent(tenant)}&event=${encodeURIComponent(event)}`,
+    `/api/book/public?host=${encodeURIComponent(host)}&event=${encodeURIComponent(event)}`,
   );
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -212,9 +214,9 @@ $("#booking-form").onsubmit = async (e) => {
   btn.textContent = "Booking…";
   hide($("#form-error"));
 
-  const { tenant, event } = getParams();
+  const { host, event } = getParams();
   const body = {
-    tenant_slug: tenant,
+    host_slug: host,
     event_slug: event,
     start_ms: selectedSlot.getTime(),
     attendee_name: $("#name").value.trim() || null,
@@ -259,6 +261,11 @@ function showConfirmation(data) {
 async function init() {
   try {
     config = await loadConfig();
+    // Replace the hardcoded "MiCal" host label with the actual host's
+    // tenant name (returned as host_name from /api/book/public). Falls
+    // back to a friendly default if older API versions don't include it.
+    const hostEl = document.querySelector(".event-host");
+    if (hostEl) hostEl.textContent = config.host_name || "Book a meeting";
     $("#event-name").textContent = config.name;
     $("#event-duration").textContent = `${config.duration_min} min`;
     if (config.location_mode && config.location_mode !== "meet") {

@@ -316,7 +316,7 @@ function renderGroupSwitcher() {
       "switcher-item" + (currentGroupId === g.id ? " active" : "");
     item.innerHTML = `
       <span class="switcher-item-name">${escapeHtml(g.name)}</span>
-      <span class="switcher-item-meta">${g.type === "family" ? "Family" : "Team"} · ${g.member_count}</span>
+      <span class="switcher-item-meta">${g.type === "family" ? "Family" : "Team"} · ${g.member_count} member${g.member_count === 1 ? "" : "s"}</span>
     `;
     item.addEventListener("click", () => selectGroup(g.id));
     menu.appendChild(item);
@@ -1890,24 +1890,61 @@ function renderCalendars() {
 
   container.innerHTML = `
     <div class="account-toolbar">
-      <div class="btn-group">
-        <a class="btn btn-secondary btn-sm" href="/api/oauth/google/init">+ Google</a>
-        <a class="btn btn-secondary btn-sm" href="/api/oauth/microsoft/init">+ Outlook</a>
-        <button class="btn btn-primary btn-sm" onclick="discoverCalendars()">
-          ${icon("search", 14)} Discover
+      <!-- Single "Connect" dropdown collapses what was three separate buttons
+           (+ Google / + Outlook / Discover). Discover lives inside the menu
+           too — it's the path you'd take after connecting another Google
+           account that has more calendars to import. -->
+      <div class="connect-wrap">
+        <button class="btn btn-primary btn-sm" type="button" id="connect-toggle" aria-haspopup="true" aria-expanded="false" onclick="toggleConnectMenu()">
+          ${icon("plus", 14)} Connect another account
+          <span class="switcher-chevron">▾</span>
         </button>
+        <div class="connect-menu" id="connect-menu" hidden>
+          <a class="connect-item" href="/api/oauth/google/init">
+            <span>Google</span>
+            <span class="muted">Google Calendar / Workspace</span>
+          </a>
+          <a class="connect-item" href="/api/oauth/microsoft/init">
+            <span>Microsoft</span>
+            <span class="muted">Outlook / Office 365</span>
+          </a>
+          <button class="connect-item" type="button" onclick="closeConnectMenu(); toggleIcsForm(true)">
+            <span>ICS feed</span>
+            <span class="muted">Subscribe by URL (read-only)</span>
+          </button>
+          <div class="connect-sep"></div>
+          <button class="connect-item" type="button" onclick="closeConnectMenu(); discoverCalendars()">
+            <span>Browse calendars to import</span>
+            <span class="muted">From accounts already connected</span>
+          </button>
+        </div>
       </div>
     </div>
     ${accountsHtml}
     ${icsHtml}
-    <div class="ics-add-row">
-      <button class="btn btn-secondary btn-sm" onclick="toggleIcsForm()">
-        ${icon("plus", 14)} Add ICS feed
-      </button>
-    </div>
     ${renderIcsForm({ initiallyHidden: true })}
   `;
 }
+
+// Connect-account dropdown helpers. Click-outside closes; Escape too.
+function toggleConnectMenu() {
+  const menu = document.getElementById("connect-menu");
+  const btn = document.getElementById("connect-toggle");
+  if (!menu || !btn) return;
+  const open = menu.hidden;
+  menu.hidden = !open;
+  btn.setAttribute("aria-expanded", String(open));
+}
+function closeConnectMenu() {
+  const menu = document.getElementById("connect-menu");
+  const btn = document.getElementById("connect-toggle");
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", "false");
+}
+document.addEventListener("click", (e) => {
+  const wrap = e.target.closest?.(".connect-wrap");
+  if (!wrap) closeConnectMenu();
+});
 
 // The ICS-feed form is collapsed by default; revealed via toggleIcsForm().
 function renderIcsForm({ initiallyHidden = true } = {}) {
@@ -2252,73 +2289,83 @@ function renderSyncFlows() {
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="sf-nl">Rule Description <span style="font-weight:400;color:var(--stone)">— describe what should happen in plain English</span></label>
-          <textarea id="sf-nl" placeholder="Example: Only sync weekdays during work hours. Hide the original title and mark events as private. Add a 15-minute buffer before each event." oninput="handleNaturalLanguageInput()"></textarea>
+        <!-- Rule toggles. Replaces the v1 dual NL+toggle paradigm — the
+             "type a sentence and watch toggles round-trip" flow looked
+             clever and confused everyone in practice. Toggles are the
+             source of truth; the saved-flow table still summarizes rules
+             in plain English via optionsToNaturalLanguage() for skim
+             reading. Essentials always visible; the buffer/work-hours
+             group folds behind a single Advanced expand. -->
+        <div class="rule-section">
+          <div class="rule-section-title">When should this run?</div>
+          <div class="rule-row">
+            <label class="toggle-row">
+              <span>Weekdays only</span>
+              <span class="toggle">
+                <input type="checkbox" id="sf-weekdays">
+                <span class="toggle-slider"></span>
+              </span>
+            </label>
+            <label class="toggle-row">
+              <span>Only during work hours</span>
+              <span class="toggle">
+                <input type="checkbox" id="sf-workhours">
+                <span class="toggle-slider"></span>
+              </span>
+            </label>
+          </div>
         </div>
 
-        <div style="margin-bottom:16px;">
-          <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdvancedOptions()">
-            <span id="adv-toggle-icon">▼</span> Advanced Options
-          </button>
+        <div class="rule-section">
+          <div class="rule-section-title">What should land on the target?</div>
+          <div class="rule-row">
+            <label class="toggle-row">
+              <span>Copy the event title</span>
+              <span class="toggle">
+                <input type="checkbox" id="sf-copy-title" checked>
+                <span class="toggle-slider"></span>
+              </span>
+            </label>
+            <label class="toggle-row">
+              <span>Copy the description</span>
+              <span class="toggle">
+                <input type="checkbox" id="sf-copy-desc">
+                <span class="toggle-slider"></span>
+              </span>
+            </label>
+            <label class="toggle-row">
+              <span>Mark as private</span>
+              <span class="toggle">
+                <input type="checkbox" id="sf-private">
+                <span class="toggle-slider"></span>
+              </span>
+            </label>
+          </div>
         </div>
 
-        <div id="sf-advanced" style="display:none;">
+        <button type="button" class="advanced-toggle" id="sf-adv-toggle" onclick="toggleAdvancedOptions()" aria-expanded="false">
+          <span class="advanced-chevron" id="adv-toggle-icon">▸</span> Advanced timing
+        </button>
+
+        <div id="sf-advanced" class="advanced-fields" style="display:none;">
           <div class="form-row">
-            <div class="form-group" style="display:flex;align-items:center;gap:12px;">
-              <label class="toggle" style="flex-shrink:0;">
-                <input type="checkbox" id="sf-weekdays" onchange="syncNaturalLanguageFromForm()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span style="font-size:0.9rem">Weekdays only</span>
+            <div class="form-group">
+              <label for="sf-work-start">Work hours — from</label>
+              <input type="time" id="sf-work-start" value="09:00">
             </div>
-            <div class="form-group" style="display:flex;align-items:center;gap:12px;">
-              <label class="toggle" style="flex-shrink:0;">
-                <input type="checkbox" id="sf-workhours" onchange="syncNaturalLanguageFromForm()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span style="font-size:0.9rem">Only during work hours</span>
-            </div>
-            <div class="form-group" style="display:flex;align-items:center;gap:12px;">
-              <label class="toggle" style="flex-shrink:0;">
-                <input type="checkbox" id="sf-private" onchange="syncNaturalLanguageFromForm()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span style="font-size:0.9rem">Mark as private</span>
+            <div class="form-group">
+              <label for="sf-work-end">Work hours — to</label>
+              <input type="time" id="sf-work-end" value="17:00">
             </div>
           </div>
           <div class="form-row">
-            <div class="form-group" style="display:flex;align-items:center;gap:12px;">
-              <label class="toggle" style="flex-shrink:0;">
-                <input type="checkbox" id="sf-copy-title" checked onchange="syncNaturalLanguageFromForm()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span style="font-size:0.9rem">Copy original title</span>
-            </div>
-            <div class="form-group" style="display:flex;align-items:center;gap:12px;">
-              <label class="toggle" style="flex-shrink:0;">
-                <input type="checkbox" id="sf-copy-desc" onchange="syncNaturalLanguageFromForm()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span style="font-size:0.9rem">Copy description</span>
-            </div>
-          </div>
-          <div class="form-row">
             <div class="form-group">
-              <label for="sf-work-start">Work Hours Start</label>
-              <input type="time" id="sf-work-start" value="09:00" onchange="syncNaturalLanguageFromForm()">
+              <label for="sf-buffer-before">Buffer before booking</label>
+              <input type="number" id="sf-buffer-before" value="0" min="0"> <span class="form-suffix">min</span>
             </div>
             <div class="form-group">
-              <label for="sf-work-end">Work Hours End</label>
-              <input type="time" id="sf-work-end" value="17:00" onchange="syncNaturalLanguageFromForm()">
-            </div>
-            <div class="form-group">
-              <label for="sf-buffer-before">Buffer Before (min)</label>
-              <input type="number" id="sf-buffer-before" value="0" min="0" onchange="syncNaturalLanguageFromForm()">
-            </div>
-            <div class="form-group">
-              <label for="sf-buffer-after">Buffer After (min)</label>
-              <input type="number" id="sf-buffer-after" value="0" min="0" onchange="syncNaturalLanguageFromForm()">
+              <label for="sf-buffer-after">Buffer after booking</label>
+              <input type="number" id="sf-buffer-after" value="0" min="0"> <span class="form-suffix">min</span>
             </div>
           </div>
         </div>
@@ -2345,7 +2392,6 @@ function renderSyncFlows() {
     $("#sf-enabled").checked = editFlow.enabled;
     const opts = editFlow.options_json ? JSON.parse(editFlow.options_json) : {};
     syncFormFromOptions(opts);
-    $("#sf-nl").value = optionsToNaturalLanguage(opts);
   }
 }
 
@@ -2387,9 +2433,11 @@ async function handleSyncFlowSubmit(e) {
 function toggleAdvancedOptions() {
   const el = $("#sf-advanced");
   const icon = $("#adv-toggle-icon");
+  const toggle = $("#sf-adv-toggle");
   const open = el.style.display !== "none";
   el.style.display = open ? "none" : "block";
-  icon.textContent = open ? "▼" : "▲";
+  if (icon) icon.textContent = open ? "▸" : "▾";
+  if (toggle) toggle.setAttribute("aria-expanded", String(!open));
 }
 
 function buildOptionsFromForm() {
@@ -2425,92 +2473,9 @@ function syncFormFromOptions(opts) {
   $("#sf-buffer-after").value = opts.buffer_min_after || 0;
 }
 
-function handleNaturalLanguageInput() {
-  const text = $("#sf-nl").value.trim();
-  if (!text) return;
-  const opts = parseNaturalLanguage(text);
-  syncFormFromOptions(opts);
-}
-
-function syncNaturalLanguageFromForm() {
-  const opts = buildOptionsFromForm();
-  $("#sf-nl").value = optionsToNaturalLanguage(opts);
-}
-
-function parseNaturalLanguage(text) {
-  const opts = {};
-  const t = text.toLowerCase();
-
-  if (
-    /weekdays? only|monday through friday|business days?|week days? only/.test(
-      t,
-    )
-  ) {
-    opts.weekdays_only = true;
-  }
-  if (
-    /work hours|business hours|working hours|9 to 5|9-5|during office hours/.test(
-      t,
-    )
-  ) {
-    opts.only_work_hours = true;
-  }
-  if (/mark as private|make private|set private|privacy/.test(t)) {
-    opts.mark_private = true;
-  }
-  if (
-    /hide title|block time|show as busy|busy only|do not copy title|don't copy title/.test(
-      t,
-    )
-  ) {
-    opts.copy_title = false;
-  }
-  if (
-    /copy title|keep title|original title/.test(t) &&
-    opts.copy_title !== false
-  ) {
-    opts.copy_title = true;
-  }
-  if (/copy description|keep description|include description/.test(t)) {
-    opts.copy_description = true;
-  }
-
-  const beforeMatch = t.match(
-    /(\d+)\s*(min|minute)s?\s*buffer\s*(before|prior|ahead)/,
-  );
-  if (beforeMatch) opts.buffer_min_before = Number(beforeMatch[1]);
-
-  const afterMatch = t.match(
-    /(\d+)\s*(min|minute)s?\s*buffer\s*(after|following)/,
-  );
-  if (afterMatch) opts.buffer_min_after = Number(afterMatch[1]);
-
-  const genericBuffer = t.match(/(\d+)\s*(min|minute)s?\s*buffer/);
-  if (genericBuffer && !beforeMatch && !afterMatch) {
-    opts.buffer_min_before = Number(genericBuffer[1]);
-  }
-
-  const timeRange = t.match(
-    /(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*to\s*(\d{1,2}):?(\d{2})?\s*(am|pm)?/,
-  );
-  if (timeRange) {
-    opts.work_hours = {
-      start: formatTime(timeRange[1], timeRange[2], timeRange[3]),
-      end: formatTime(timeRange[4], timeRange[5], timeRange[6]),
-    };
-  }
-
-  return opts;
-}
-
-function formatTime(h, m, meridiem) {
-  let hour = Number(h);
-  const min = m ? Number(m) : 0;
-  if (meridiem === "pm" && hour < 12) hour += 12;
-  if (meridiem === "am" && hour === 12) hour = 0;
-  return `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-}
-
+// optionsToNaturalLanguage stays — it's used purely for display in the
+// flows table to give a human-readable summary of saved rules. The bidi
+// NL ↔ form parser was removed when we collapsed to a toggles-only form.
 function optionsToNaturalLanguage(opts) {
   if (!opts || Object.keys(opts).length === 0) return "";
   const parts = [];
@@ -2656,7 +2621,7 @@ function renderEventTypes() {
             ${eventTypes
               .map((et) => {
                 const url = tenantSlug
-                  ? `${baseOrigin}/book/?tenant=${encodeURIComponent(tenantSlug)}&event=${encodeURIComponent(et.slug)}`
+                  ? `${baseOrigin}/book/?host=${encodeURIComponent(tenantSlug)}&event=${encodeURIComponent(et.slug)}`
                   : "";
                 return `
               <tr data-id="${escapeHtml(et.id)}">
@@ -3095,7 +3060,7 @@ function showBookingUrlModal(eventType) {
   const tenantSlug = currentUser?.tenant_slug;
   if (!tenantSlug || !eventType?.slug) return;
   const base = window.location.origin;
-  const url = `${base}/book/?tenant=${encodeURIComponent(tenantSlug)}&event=${encodeURIComponent(eventType.slug)}`;
+  const url = `${base}/book/?host=${encodeURIComponent(tenantSlug)}&event=${encodeURIComponent(eventType.slug)}`;
 
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay open";
