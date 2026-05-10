@@ -224,8 +224,16 @@ nav {
 }
 
 .problem-card .icon {
-  font-size: 2.5rem;
   margin-bottom: 16px;
+  color: var(--bridge-blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.problem-card .icon svg {
+  width: 36px;
+  height: 36px;
 }
 
 .problem-card h3 {
@@ -266,12 +274,19 @@ nav {
 }
 
 .feature-card .icon {
-  font-size: 2rem;
   margin-bottom: 20px;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 12px;
   background: var(--cloud);
   border-radius: 12px;
+  color: var(--flow-teal);
+}
+
+.feature-card .icon svg {
+  width: 32px;
+  height: 32px;
 }
 
 .feature-card h3 {

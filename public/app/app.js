@@ -18,6 +18,32 @@ function $$(sel) {
   return document.querySelectorAll(sel);
 }
 
+// ─── Icons (Lucide-style stroke SVG, 24x24, currentColor) ───
+const ICONS = {
+  home: '<path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1V9.5z"/>',
+  calendar:
+    '<rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/>',
+  sync: '<path d="M21 12a9 9 0 0 0-15.7-6"/><path d="M3 4v5h5"/><path d="M3 12a9 9 0 0 0 15.7 6"/><path d="M21 20v-5h-5"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>',
+  book: '<path d="M4 4.5v15a1.5 1.5 0 0 0 1.5 1.5H20V3H6.5A2.5 2.5 0 0 0 4 5.5v0z"/><path d="M8 7h9"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+  trash:
+    '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  check: '<path d="M5 13l4 4L19 7"/>',
+  arrowRight: '<path d="M5 12h14M13 5l7 7-7 7"/>',
+  menu: '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  empty:
+    '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9 15c.5-.7 1.7-1 3-1s2.5.3 3 1"/>',
+};
+
+function icon(name, size = 18) {
+  const body = ICONS[name];
+  if (!body) return "";
+  return `<svg class="icon icon-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
 function formatDate(ms) {
   if (!ms) return "—";
   const d = new Date(Number(ms));
@@ -38,19 +64,57 @@ function getInitials(name, email) {
   return str.slice(0, 2).toUpperCase();
 }
 
-function showError(msg, container) {
-  const el = document.createElement("div");
-  el.className = "error-banner";
-  el.innerHTML = `<span>${escapeHtml(msg)}</span><button onclick="this.parentElement.remove()">×</button>`;
-  const target = typeof container === "string" ? $(container) : container;
-  if (target) target.prepend(el);
+// ─── Toast notifications ───
+// Top-right stack. Auto-dismiss: 4s success, 8s error. Closeable.
+function ensureToastStack() {
+  let stack = document.getElementById("toast-stack");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.id = "toast-stack";
+    stack.className = "toast-stack";
+    document.body.appendChild(stack);
+  }
+  return stack;
 }
 
-function clearErrors(container) {
-  const target = typeof container === "string" ? $(container) : container;
-  if (target)
-    target.querySelectorAll(".error-banner").forEach((el) => el.remove());
+function showToast(msg, type = "info") {
+  const stack = ensureToastStack();
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.setAttribute("role", type === "error" ? "alert" : "status");
+  const span = document.createElement("span");
+  span.className = "toast-msg";
+  span.textContent = String(msg);
+  const btn = document.createElement("button");
+  btn.className = "toast-close";
+  btn.setAttribute("aria-label", "Dismiss");
+  btn.textContent = "×";
+  btn.addEventListener("click", () => dismissToast(el));
+  el.appendChild(span);
+  el.appendChild(btn);
+  stack.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("toast-in"));
+  const timeout = type === "error" ? 8000 : 4000;
+  el._dismissTimer = setTimeout(() => dismissToast(el), timeout);
+  return el;
 }
+
+function dismissToast(el) {
+  if (!el || !el.parentNode) return;
+  if (el._dismissTimer) clearTimeout(el._dismissTimer);
+  el.classList.remove("toast-in");
+  el.classList.add("toast-out");
+  setTimeout(() => el.remove(), 200);
+}
+
+function showSuccess(msg) {
+  return showToast(msg, "success");
+}
+function showError(msg /*, container (kept for backwards-compat) */) {
+  return showToast(msg, "error");
+}
+// No-op now that errors are non-blocking toasts; kept callable for existing code paths.
+function clearErrors(/* container */) {}
 
 function escapeHtml(str) {
   if (str == null) return "";
@@ -285,7 +349,7 @@ function renderCalendars() {
   if (calendars.length === 0) {
     listHtml = `
       <div class="empty-state">
-        <div class="empty-state-icon">📅</div>
+        <div class="empty-state-icon">${icon("calendar", 40)}</div>
         <h3>No calendars connected</h3>
         <p>Discover calendars from your accounts or add an ICS feed to get started.</p>
       </div>
@@ -312,7 +376,7 @@ function renderCalendars() {
                   </label>
                 </td>
                 <td style="text-align:right">
-                  <button class="btn btn-danger btn-sm" onclick="deleteCalendar('${escapeHtml(cal.id)}')" title="Remove this calendar">🗑️ Remove</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteCalendar('${escapeHtml(cal.id)}')" title="Remove this calendar">${icon("trash", 14)} Remove</button>
                 </td>
               </tr>
             `,
@@ -332,7 +396,7 @@ function renderCalendars() {
           <a class="btn btn-secondary btn-sm" href="/api/oauth/google/init">+ Google</a>
           <a class="btn btn-secondary btn-sm" href="/api/oauth/microsoft/init">+ Outlook</a>
           <button class="btn btn-primary btn-sm" onclick="discoverCalendars()">
-            <span>🔍</span> Discover
+            ${icon("search", 14)} Discover
           </button>
         </div>
       </div>
@@ -394,7 +458,7 @@ function renderPreview(discovered) {
   if (discovered.length === 0) {
     body.innerHTML = `
       <div class="empty-state">
-        <div class="empty-state-icon">🔭</div>
+        <div class="empty-state-icon">${icon("search", 40)}</div>
         <h3>No calendars found</h3>
         <p>Make sure you have linked a Google or Outlook account.</p>
       </div>
@@ -434,7 +498,7 @@ function renderPreview(discovered) {
         ? "preview-item disabled"
         : "preview-item";
       const importedTag = item.alreadyImported
-        ? '<span class="already-imported">✓ Imported</span>'
+        ? `<span class="already-imported">${icon("check", 14)} Imported</span>`
         : "";
       html += `
         <div class="${cssClass}">
@@ -485,17 +549,10 @@ async function importSelectedCalendars() {
     closePreviewModal();
     calendars = await api("/api/calendars");
     renderCalendars();
-    const container = $("#calendars-content");
-    const el = document.createElement("div");
-    el.style.cssText =
-      "background:rgba(56,161,105,0.08);color:var(--success);padding:12px 16px;border-radius:8px;font-size:0.9rem;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;";
-    el.innerHTML = `<span>Imported ${selections.length} calendar(s).</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:1rem;">×</button>`;
-    container.prepend(el);
+    showSuccess(`Imported ${selections.length} calendar(s).`);
   } catch (err) {
     if (err.message !== "unauthorized") {
-      $("#preview-modal-body").prepend(
-        `<div class="error-banner">${escapeHtml(err.message)}</div>`,
-      );
+      showError(err.message);
     }
   } finally {
     btn.disabled = false;
@@ -586,7 +643,7 @@ function renderSyncFlows() {
   if (syncFlows.length === 0) {
     listHtml = `
       <div class="empty-state">
-        <div class="empty-state-icon">🔄</div>
+        <div class="empty-state-icon">${icon("sync", 40)}</div>
         <h3>No sync flows yet</h3>
         <p>Create a flow to automatically sync events between calendars.</p>
       </div>
@@ -616,8 +673,8 @@ function renderSyncFlows() {
                 <td>${flow.ord}</td>
                 <td>
                   <div class="actions">
-                    <button class="icon-btn" onclick="editSyncFlow('${escapeHtml(flow.id)}')" title="Edit">✏️</button>
-                    <button class="icon-btn danger" onclick="deleteSyncFlow('${escapeHtml(flow.id)}')" title="Delete">🗑️</button>
+                    <button class="icon-btn" onclick="editSyncFlow('${escapeHtml(flow.id)}')" title="Edit">${icon("edit", 14)}</button>
+                    <button class="icon-btn danger" onclick="deleteSyncFlow('${escapeHtml(flow.id)}')" title="Delete">${icon("trash", 14)}</button>
                   </div>
                 </td>
               </tr>
@@ -1037,7 +1094,7 @@ function renderEventTypes() {
   if (eventTypes.length === 0) {
     listHtml = `
       <div class="empty-state">
-        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-icon">${icon("list", 40)}</div>
         <h3>No event types yet</h3>
         <p>Create event types to share public booking pages.</p>
       </div>
@@ -1061,8 +1118,8 @@ function renderEventTypes() {
                 <td>${et.enabled ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Disabled</span>'}</td>
                 <td>
                   <div class="actions">
-                    <button class="icon-btn" onclick="editEventType('${escapeHtml(et.id)}')" title="Edit">✏️</button>
-                    <button class="icon-btn danger" onclick="deleteEventType('${escapeHtml(et.id)}')" title="Delete">🗑️</button>
+                    <button class="icon-btn" onclick="editEventType('${escapeHtml(et.id)}')" title="Edit">${icon("edit", 14)}</button>
+                    <button class="icon-btn danger" onclick="deleteEventType('${escapeHtml(et.id)}')" title="Delete">${icon("trash", 14)}</button>
                   </div>
                 </td>
               </tr>
@@ -1328,7 +1385,7 @@ function renderBookings() {
   if (bookings.length === 0) {
     listHtml = `
       <div class="empty-state">
-        <div class="empty-state-icon">📖</div>
+        <div class="empty-state-icon">${icon("book", 40)}</div>
         <h3>No bookings yet</h3>
         <p>Bookings will appear here when people schedule through your public pages.</p>
       </div>
