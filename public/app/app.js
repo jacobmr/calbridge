@@ -3387,8 +3387,11 @@ let pickerState = null;
 
 // Module-level cache for contact suggestions. Populated lazily on the
 // first poll-create modal open of the session. Never persisted; cleared
-// on a hard refresh.
+// on a hard refresh. contactsErrors holds per-source failures from the
+// last fetch so the picker can surface actionable diagnostics ("People
+// API not enabled") instead of silently rendering nothing.
 let contactsCache = null;
+let contactsErrors = [];
 let contactsLoadingPromise = null;
 
 async function loadContactsOnce() {
@@ -3398,10 +3401,12 @@ async function loadContactsOnce() {
     try {
       const data = await api("/api/contacts");
       contactsCache = data.contacts || [];
+      contactsErrors = data.source_errors || [];
     } catch {
       // Soft failure — autocomplete just doesn't suggest anything. The
       // organizer can still type emails manually.
       contactsCache = [];
+      contactsErrors = [];
     } finally {
       contactsLoadingPromise = null;
     }
@@ -3847,6 +3852,30 @@ function renderSuggestions(overlay) {
       loading.className = "contact-suggestion-loading";
       loading.textContent = "Loading contacts…";
       suggBox.appendChild(loading);
+      show(suggBox);
+      return;
+    }
+    // Loaded but empty + we have per-source diagnostics → surface them.
+    // Most common case: People API not enabled. Operator-actionable copy
+    // beats a blank popup that looks like a bug in the chip input.
+    if (contactsErrors.length > 0 && q === "") {
+      for (const e of contactsErrors) {
+        const row = document.createElement("div");
+        row.className = "contact-suggestion-loading";
+        row.style.textAlign = "left";
+        row.style.padding = "10px 12px";
+        const head = document.createElement("div");
+        head.style.fontWeight = "600";
+        head.style.marginBottom = "2px";
+        head.textContent = `${e.source} contacts unavailable`;
+        const body = document.createElement("div");
+        body.style.fontSize = "0.8rem";
+        body.style.color = "var(--stone)";
+        body.textContent = e.reason;
+        row.appendChild(head);
+        row.appendChild(body);
+        suggBox.appendChild(row);
+      }
       show(suggBox);
       return;
     }

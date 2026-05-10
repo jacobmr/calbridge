@@ -130,22 +130,34 @@ export default async function handler(req, res) {
     // failure shouldn't tank the merged result (e.g. one Google account
     // with a revoked refresh token shouldn't blank Microsoft contacts).
     const accountsRes = await db.execute({
-      sql: `SELECT id, provider, access_token_enc, access_token_expires_at,
+      sql: `SELECT id, provider, email, access_token_enc, access_token_expires_at,
                    refresh_token_enc, scopes
               FROM oauth_accounts
              WHERE user_id = ?`,
       args: [user.id],
     });
 
+    // Per-source error log surfaced back to the client. Bug-shaped failures
+    // (People API not enabled, revoked refresh token, etc.) used to swallow
+    // silently and look identical to "no contacts" — log them in-band so
+    // the UI can show a hint.
+    const sourceErrors = [];
+
     const providerFetches = accountsRes.rows.map(async (acct) => {
+      const provider = String(acct.provider || "").toLowerCase();
       try {
-        const provider = String(acct.provider || "").toLowerCase();
         if (provider === "google") {
           // Skip accounts whose granted scopes don't include contacts —
           // calling People API without the scope returns 403 and would
           // poison the merge. The scopes column is a space-separated
           // string from the original consent.
           if (!String(acct.scopes || "").includes("contacts.readonly")) {
+            sourceErrors.push({
+              source: "google",
+              email: acct.email || null,
+              reason:
+                "contacts.readonly scope not granted — sign out and back in to re-consent",
+            });
             return [];
           }
           const token = await withTimeout(
@@ -166,6 +178,12 @@ export default async function handler(req, res) {
               .toLowerCase()
               .includes("contacts.read")
           ) {
+            sourceErrors.push({
+              source: "microsoft",
+              email: acct.email || null,
+              reason:
+                "Contacts.Read scope not granted — sign out and back in to re-consent",
+            });
             return [];
           }
           const token = await withTimeout(
@@ -182,11 +200,24 @@ export default async function handler(req, res) {
         }
         return [];
       } catch (err) {
-        console.error(
-          "contacts: per-account fetch failed",
-          acct.provider,
-          err.message,
-        );
+        const msg = err.message || String(err);
+        console.error("contacts: per-account fetch failed", provider, msg);
+        // Map common Google "API not enabled" 403 to actionable copy so
+        // the user/operator sees the fix in the UI instead of staring at
+        // an empty popup.
+        let reason = msg.slice(0, 240);
+        if (
+          provider === "google" &&
+          /People API .*has not been used|People API .*disabled/i.test(msg)
+        ) {
+          reason =
+            "Google People API not enabled for the MiCal project. Enable it at https://console.cloud.google.com/apis/library/people.googleapis.com";
+        }
+        sourceErrors.push({
+          source: provider,
+          email: acct.email || null,
+          reason,
+        });
         return [];
       }
     });
@@ -231,7 +262,7 @@ export default async function handler(req, res) {
     // Brief cache hint so a fast double-open of the picker doesn't pay
     // for two People API round-trips. Private — never share across users.
     res.setHeader("cache-control", "private, max-age=30");
-    res.end(JSON.stringify({ contacts: result }));
+    res.end(JSON.stringify({ contacts: result, source_errors: sourceErrors }));
   } catch (err) {
     sendError(res, err);
   }
