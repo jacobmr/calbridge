@@ -776,26 +776,34 @@ function openInviteDialog() {
       </div>
       <form id="invite-form" class="modal-body">
         <div class="form-group">
-          <label for="inv-email">Email address</label>
-          <input type="email" id="inv-email" placeholder="partner@example.com" required autofocus>
-          <p class="form-hint">If they already have MiCal, they get a notification on next sign-in. Otherwise we'll give you a link to send them.</p>
+          <label>People to invite</label>
+          <div id="inv-mount"></div>
+          <p class="form-hint">Type names or emails. Already on MiCal? They get a notification on next sign-in. Not yet? We'll email them an invite link.</p>
         </div>
         <div class="form-group">
-          <label for="inv-role">Role</label>
+          <label for="inv-role">Role for everyone in this batch</label>
           <select id="inv-role">
             <option value="member" selected>Member — can see and share</option>
             <option value="admin">Admin — can also invite and remove</option>
           </select>
         </div>
+        <div id="inv-results" hidden></div>
       </form>
       <div class="modal-footer">
         <button class="btn btn-secondary" type="button" id="inv-cancel">Cancel</button>
-        <button class="btn btn-primary" type="submit" form="invite-form" id="inv-submit">Send invite</button>
+        <button class="btn btn-primary" type="submit" form="invite-form" id="inv-submit">Send invites</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
   document.body.style.overflow = "hidden";
+
+  // Mount the contacts chip-input + autocomplete. Same component as the
+  // poll-create modal.
+  const mount = overlay.querySelector("#inv-mount");
+  mount.innerHTML = contactPickerMarkup("Type a name or email…");
+  const picker = mountContactsPicker(mount.querySelector(".contact-picker"));
+  picker.focus();
 
   const close = () => {
     overlay.remove();
@@ -816,90 +824,101 @@ function openInviteDialog() {
     .querySelector("#invite-form")
     .addEventListener("submit", async (e) => {
       e.preventDefault();
-      const email = overlay.querySelector("#inv-email").value.trim();
+      picker.commitPending();
+      const invitees = picker.getEmails();
+      if (invitees.length === 0) {
+        showError("Add at least one person to invite.");
+        return;
+      }
       const role = overlay.querySelector("#inv-role").value;
-      if (!email) return;
       const submit = overlay.querySelector("#inv-submit");
       submit.disabled = true;
-      submit.textContent = "Sending…";
-      try {
-        const result = await api(`/api/groups/${currentGroupId}/invite`, {
-          method: "POST",
-          body: JSON.stringify({ email, role }),
-        });
-        if (result.invite_url) {
-          // No MiCal account yet. Two paths:
-          //   - email_sent: Resend delivered the invite → celebrate and close
-          //   - else: surface the link as a fallback (Resend not configured,
-          //     send failed, or inviter wants a backup channel)
-          if (result.email_sent) {
-            showSuccess(`Invitation emailed to ${email}.`);
-            close();
-            await loadGroupSettings();
-          } else {
-            showInviteLinkResult(
-              overlay,
-              email,
-              result.invite_url,
-              result.email_failure_reason,
-            );
-          }
-        } else if (result.already_member) {
-          showSuccess(`${email} is already a member.`);
-          close();
-          await loadGroupSettings();
-        } else {
-          showSuccess(`Invited ${email}.`);
-          close();
-          await loadGroupSettings();
-        }
-      } catch (err) {
-        submit.disabled = false;
-        submit.textContent = "Send invite";
-        showError(err.message);
-      }
+      submit.textContent = `Sending ${invitees.length}…`;
+
+      // Fan out: one POST per invitee, parallel. allSettled so a single
+      // bad-email rejection doesn't stop the rest. Per-row outcomes are
+      // surfaced in a results panel inside the dialog so the inviter can
+      // see which of the batch needed a manual link.
+      const results = await Promise.allSettled(
+        invitees.map(async (inv) => {
+          const r = await api(`/api/groups/${currentGroupId}/invite`, {
+            method: "POST",
+            body: JSON.stringify({ email: inv.email, role }),
+          });
+          return { ...r, email: inv.email, name: inv.name };
+        }),
+      );
+
+      renderInviteBatchResults(overlay, results);
+      submit.disabled = false;
+      submit.textContent = "Send invites";
+      // Don't auto-close — let the inviter copy any "needs manual link"
+      // outputs before they dismiss.
+      await loadGroupSettings();
     });
 }
 
-// Replace the form body with a copy-the-link state once we know the invitee
-// isn't on MiCal yet. The link expires in 30 days; the dialog remembers
-// what email it went to so the inviter can confirm.
-function showInviteLinkResult(overlay, email, inviteUrl) {
-  const dialog = overlay.querySelector(".invite-dialog");
-  dialog.innerHTML = `
-    <div class="modal-header">
-      <h3>Invite ready to share</h3>
-      <button class="modal-close" type="button" aria-label="Close">×</button>
-    </div>
-    <div class="modal-body">
-      <p><strong>${escapeHtml(email)}</strong> isn't on MiCal yet — that's fine. Send them this link:</p>
-      <div class="invite-link-row">
-        <input type="text" id="invite-link" readonly value="${escapeHtml(inviteUrl)}">
-        <button class="btn btn-primary btn-sm" id="invite-copy">Copy</button>
-      </div>
-      <p class="form-hint">The link signs them in and joins them to the group automatically. Expires in 30 days.</p>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-primary" type="button" id="invite-done">Done</button>
-    </div>
-  `;
-  const close = () => {
-    overlay.remove();
-    document.body.style.overflow = "";
-    loadGroupSettings();
-  };
-  dialog.querySelector(".modal-close").addEventListener("click", close);
-  dialog.querySelector("#invite-done").addEventListener("click", close);
-  dialog.querySelector("#invite-copy").addEventListener("click", async () => {
-    const input = dialog.querySelector("#invite-link");
-    try {
-      await navigator.clipboard.writeText(input.value);
-    } catch {
-      input.select();
-      document.execCommand("copy");
+// Render the per-invite outcome panel after a batch send. Three buckets:
+//   - sent              ✓ (member already, or invite emailed)
+//   - link-only         ⚠ (no MiCal account, Resend wasn't configured or
+//                          send failed → surface the link to copy)
+//   - failed            ✗ (with the error message)
+function renderInviteBatchResults(overlay, settled) {
+  const panel = overlay.querySelector("#inv-results");
+  panel.replaceChildren();
+  panel.hidden = false;
+
+  const header = document.createElement("h4");
+  header.style.margin = "16px 0 8px";
+  header.textContent = `Results`;
+  panel.appendChild(header);
+
+  for (const s of settled) {
+    const row = document.createElement("div");
+    row.className = "invite-result-row";
+    row.style.padding = "8px 0";
+    row.style.borderBottom = "1px solid rgba(0,0,0,0.06)";
+
+    if (s.status === "rejected") {
+      row.textContent = `✗ ${s.reason?.message || "Failed"}`;
+      row.style.color = "var(--danger)";
+      panel.appendChild(row);
+      continue;
     }
-    showSuccess("Link copied.");
-  });
+    const r = s.value;
+    if (r.already_member) {
+      row.textContent = `• ${r.name || r.email} — already a member`;
+      row.style.color = "var(--stone)";
+    } else if (r.invite_url && !r.email_sent) {
+      // Non-MiCal user, no email — show the link to copy.
+      const head = document.createElement("div");
+      head.textContent = `⚠ ${r.name || r.email} — copy this link:`;
+      const linkRow = document.createElement("div");
+      linkRow.style.cssText =
+        "display:flex;gap:8px;margin-top:4px;align-items:center";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.readOnly = true;
+      input.value = r.invite_url;
+      input.style.cssText = "flex:1;font-size:0.85rem;padding:4px 8px";
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "btn btn-secondary btn-sm";
+      copyBtn.textContent = "Copy";
+      copyBtn.addEventListener("click", () => copyToClipboard(r.invite_url));
+      linkRow.appendChild(input);
+      linkRow.appendChild(copyBtn);
+      row.appendChild(head);
+      row.appendChild(linkRow);
+    } else if (r.invite_url && r.email_sent) {
+      row.textContent = `✓ ${r.name || r.email} — invitation emailed`;
+      row.style.color = "var(--success)";
+    } else {
+      row.textContent = `✓ ${r.name || r.email} — invited`;
+      row.style.color = "var(--success)";
+    }
+    panel.appendChild(row);
+  }
 }
 
 async function openShareDialog() {
@@ -3423,7 +3442,8 @@ function openCreatePollDialog() {
     busy: [],
     selected: new Set(),
     durationMin: 30,
-    invitees: [], // { email, name? }
+    // inviteesPicker is set once the contacts chip-input is mounted below.
+    inviteesPicker: null,
   };
 
   const overlay = document.createElement("div");
@@ -3470,12 +3490,8 @@ function openCreatePollDialog() {
           </div>
         </div>
         <div class="form-group">
-          <label for="cp-invitees-input">Send invitations to <span class="optional">(optional)</span></label>
-          <div class="contact-picker" id="cp-invitees">
-            <div class="contact-picker-chips" id="cp-invitees-chips"></div>
-            <input type="text" id="cp-invitees-input" class="contact-picker-input" placeholder="Type a name or email…" autocomplete="off">
-            <div class="contact-picker-suggestions" id="cp-invitees-suggestions" hidden></div>
-          </div>
+          <label>Send invitations to <span class="optional">(optional)</span></label>
+          <div id="cp-invitees-mount"></div>
           <p class="muted" style="font-size:0.85rem;margin:4px 0 0">
             Recipients get an email with the poll link. You'll also get the link to share manually.
           </p>
@@ -3521,7 +3537,12 @@ function openCreatePollDialog() {
   loadHostBusyForPicker(overlay).then(() => renderSlotGrid(overlay));
 
   // Wire up the contacts autocomplete on the invitees chip input.
-  wireInviteesPicker(overlay);
+  const inviteesMount = overlay.querySelector("#cp-invitees-mount");
+  inviteesMount.innerHTML = contactPickerMarkup("Type a name or email…");
+  const inviteesPicker = mountContactsPicker(
+    inviteesMount.querySelector(".contact-picker"),
+  );
+  pickerState.inviteesPicker = inviteesPicker;
 
   overlay
     .querySelector("#create-poll-form")
@@ -3538,8 +3559,10 @@ function openCreatePollDialog() {
       // Sweep any free-text the user typed but didn't add as a chip yet —
       // common case is they typed an email, hit Tab, then submit. Without
       // this, that email would silently get dropped.
-      commitPendingInviteText(overlay);
-      const invite_emails = pickerState.invitees.map((i) => i.email);
+      pickerState.inviteesPicker.commitPending();
+      const invite_emails = pickerState.inviteesPicker
+        .getEmails()
+        .map((i) => i.email);
 
       const options = [...pickerState.selected]
         .sort((a, b) => a - b)
@@ -3704,63 +3727,118 @@ function updateSelectedCount(overlay) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function wireInviteesPicker(overlay) {
-  const input = overlay.querySelector("#cp-invitees-input");
-  const suggBox = overlay.querySelector("#cp-invitees-suggestions");
+// Per-picker state, keyed by the picker root element. Lets us mount the
+// same component in multiple dialogs (poll-create, group-invite, …)
+// without clashing globals. Cleared automatically when the root is GC'd.
+const contactPickerStates = new WeakMap();
+
+/**
+ * Mount a contacts chip-input + autocomplete on a `.contact-picker` root.
+ *
+ * The root must contain (or have these inserted via createContactPickerMarkup):
+ *   .contact-picker-chips
+ *   .contact-picker-input
+ *   .contact-picker-suggestions
+ *
+ * Returns:
+ *   {
+ *     getEmails():      [{ email, name|null }, …]   — current chips
+ *     commitPending():  flush typed-but-not-added text to a chip
+ *     clear():          remove all chips
+ *     focus():          focus the input
+ *   }
+ */
+function mountContactsPicker(rootEl) {
+  const state = { invitees: [] };
+  contactPickerStates.set(rootEl, state);
+
+  const input = rootEl.querySelector(".contact-picker-input");
+  const suggBox = rootEl.querySelector(".contact-picker-suggestions");
 
   // Prefetch in the background — don't block the modal render.
   loadContactsOnce().then(() => {
-    // If the user already focused/typed before the fetch returned, rerun
-    // the suggestion render so we don't leave them staring at an empty list.
-    if (document.activeElement === input) renderSuggestions(overlay);
+    if (document.activeElement === input) renderContactSuggestions(rootEl);
   });
 
-  // Render the user's current chips. (Empty initially; this is just
-  // bootstrapping in case we ever pre-populate.)
-  renderInviteeChips(overlay);
+  renderContactChips(rootEl);
 
-  input.addEventListener("input", () => renderSuggestions(overlay));
-  input.addEventListener("focus", () => renderSuggestions(overlay));
+  input.addEventListener("input", () => renderContactSuggestions(rootEl));
+  input.addEventListener("focus", () => renderContactSuggestions(rootEl));
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
-      // Tab is the gentlest "commit" affordance — keeps the user's
-      // existing tab order working if they intend to move on, but
-      // captures the value first.
       const val = input.value.trim().replace(/,$/, "");
       if (val) {
         e.preventDefault();
-        addInvitee(overlay, val);
+        addContactToPicker(rootEl, val);
       }
     } else if (e.key === "Backspace" && input.value === "") {
-      // Backspace on an empty input removes the last chip — standard
-      // chip-input affordance.
-      if (pickerState.invitees.length > 0) {
-        pickerState.invitees.pop();
-        renderInviteeChips(overlay);
+      if (state.invitees.length > 0) {
+        state.invitees.pop();
+        renderContactChips(rootEl);
       }
     } else if (e.key === "Escape") {
       hide(suggBox);
     }
   });
 
-  // Click-outside closes the suggestions popup.
-  document.addEventListener("mousedown", (e) => {
-    if (!overlay.contains(e.target)) return;
-    if (!overlay.querySelector("#cp-invitees").contains(e.target)) {
-      hide(suggBox);
+  // Click-outside-the-picker closes the suggestions popup. AbortController
+  // ties the listener lifetime to a MutationObserver that watches for the
+  // picker being removed from the DOM — guarantees teardown even if many
+  // pickers are opened/closed without any intervening mousedown events.
+  const ac = new AbortController();
+  document.addEventListener(
+    "mousedown",
+    (e) => {
+      if (!rootEl.contains(e.target)) hide(suggBox);
+    },
+    { signal: ac.signal },
+  );
+  // Detach the listener the moment this picker leaves the DOM. Bubbles
+  // up from the modal-close path without needing the dialog to know
+  // anything about the picker's internals.
+  const mo = new MutationObserver(() => {
+    if (!rootEl.isConnected) {
+      ac.abort();
+      mo.disconnect();
     }
   });
+  mo.observe(document.body, { childList: true, subtree: true });
+
+  return {
+    getEmails: () => state.invitees.slice(),
+    commitPending: () => commitPickerPendingText(rootEl),
+    clear: () => {
+      state.invitees = [];
+      renderContactChips(rootEl);
+    },
+    focus: () => input.focus(),
+  };
 }
 
-function renderInviteeChips(overlay) {
-  const chipsEl = overlay.querySelector("#cp-invitees-chips");
+/**
+ * Generate the standard contact-picker markup as a string. Drop into any
+ * form where you want the chip-input. Call mountContactsPicker() on the
+ * resulting `.contact-picker` element afterwards.
+ *
+ * placeholder: input placeholder text
+ */
+function contactPickerMarkup(placeholder = "Type a name or email…") {
+  return `
+    <div class="contact-picker">
+      <div class="contact-picker-chips"></div>
+      <input type="text" class="contact-picker-input" placeholder="${escapeHtml(placeholder)}" autocomplete="off">
+      <div class="contact-picker-suggestions" hidden></div>
+    </div>
+  `;
+}
+
+function renderContactChips(rootEl) {
+  const state = contactPickerStates.get(rootEl);
+  const chipsEl = rootEl.querySelector(".contact-picker-chips");
   chipsEl.replaceChildren();
-  for (const inv of pickerState.invitees) {
+  for (const inv of state.invitees) {
     const chip = document.createElement("span");
     chip.className = "contact-chip";
-    // Show name when we have one, email always (small). createElement +
-    // textContent throughout so a contact named e.g. `<script>...` from
-    // Google can't inject markup.
     const label = document.createElement("span");
     label.className = "contact-chip-label";
     label.textContent = inv.name ? `${inv.name}` : inv.email;
@@ -3777,20 +3855,18 @@ function renderInviteeChips(overlay) {
     x.setAttribute("aria-label", `Remove ${inv.email}`);
     x.textContent = "×";
     x.addEventListener("click", () => {
-      pickerState.invitees = pickerState.invitees.filter(
-        (i) => i.email !== inv.email,
-      );
-      renderInviteeChips(overlay);
+      state.invitees = state.invitees.filter((i) => i.email !== inv.email);
+      renderContactChips(rootEl);
     });
     chip.appendChild(x);
     chipsEl.appendChild(chip);
   }
 }
 
-function addInvitee(overlay, raw) {
-  const input = overlay.querySelector("#cp-invitees-input");
-  // Accept either "Name <email>" or just "email" (or a name match from
-  // the suggestions list, which calls this with the email directly).
+function addContactToPicker(rootEl, raw) {
+  const state = contactPickerStates.get(rootEl);
+  const input = rootEl.querySelector(".contact-picker-input");
+  // Accept either "Name <email>" or just "email".
   let name = null;
   let email = raw.trim();
   const m = email.match(/^(.+?)\s*<([^>]+)>$/);
@@ -3803,33 +3879,31 @@ function addInvitee(overlay, raw) {
     showError(`"${raw}" doesn't look like an email address.`);
     return;
   }
-  if (pickerState.invitees.some((i) => i.email === email)) {
+  if (state.invitees.some((i) => i.email === email)) {
     input.value = "";
-    renderSuggestions(overlay);
+    renderContactSuggestions(rootEl);
     return;
   }
-  pickerState.invitees.push({ email, name });
+  state.invitees.push({ email, name });
   input.value = "";
-  renderInviteeChips(overlay);
-  renderSuggestions(overlay);
+  renderContactChips(rootEl);
+  renderContactSuggestions(rootEl);
 }
 
-function commitPendingInviteText(overlay) {
-  const input = overlay.querySelector("#cp-invitees-input");
+function commitPickerPendingText(rootEl) {
+  const input = rootEl.querySelector(".contact-picker-input");
   const val = input.value.trim();
-  if (val) addInvitee(overlay, val);
+  if (val) addContactToPicker(rootEl, val);
 }
 
-function renderSuggestions(overlay) {
-  const input = overlay.querySelector("#cp-invitees-input");
-  const suggBox = overlay.querySelector("#cp-invitees-suggestions");
+function renderContactSuggestions(rootEl) {
+  const state = contactPickerStates.get(rootEl);
+  const input = rootEl.querySelector(".contact-picker-input");
+  const suggBox = rootEl.querySelector(".contact-picker-suggestions");
   const q = input.value.trim().toLowerCase();
 
-  // If the user hasn't typed anything, still show a small primer of their
-  // most-recent / most-relevant contacts so the field reveals itself as
-  // an autocomplete (not just a text input).
   const all = contactsCache || [];
-  const alreadyPicked = new Set(pickerState.invitees.map((i) => i.email));
+  const alreadyPicked = new Set(state.invitees.map((i) => i.email));
 
   let candidates;
   if (!q) {
@@ -3846,7 +3920,6 @@ function renderSuggestions(overlay) {
 
   suggBox.replaceChildren();
   if (candidates.length === 0) {
-    // Still indicate the autocomplete is "alive" while loading.
     if (contactsCache == null && q === "") {
       const loading = document.createElement("div");
       loading.className = "contact-suggestion-loading";
@@ -3855,9 +3928,6 @@ function renderSuggestions(overlay) {
       show(suggBox);
       return;
     }
-    // Loaded but empty + we have per-source diagnostics → surface them.
-    // Most common case: People API not enabled. Operator-actionable copy
-    // beats a blank popup that looks like a bug in the chip input.
     if (contactsErrors.length > 0 && q === "") {
       for (const e of contactsErrors) {
         const row = document.createElement("div");
@@ -3896,20 +3966,15 @@ function renderSuggestions(overlay) {
       sub.textContent = c.email;
       row.appendChild(sub);
     }
-    // Tiny badge showing where the suggestion came from. Helpful for the
-    // demo video — reviewer sees "google" / "microsoft" / "internal" and
-    // knows the contacts.readonly scope is doing actual work.
     if (c.source) {
       const src = document.createElement("span");
       src.className = "contact-suggestion-source";
       src.textContent = c.source;
       row.appendChild(src);
     }
-    // mousedown rather than click — click fires after blur which would
-    // close the popup before the handler runs.
     row.addEventListener("mousedown", (e) => {
       e.preventDefault();
-      addInvitee(overlay, c.name ? `${c.name} <${c.email}>` : c.email);
+      addContactToPicker(rootEl, c.name ? `${c.name} <${c.email}>` : c.email);
       input.focus();
     });
     suggBox.appendChild(row);
