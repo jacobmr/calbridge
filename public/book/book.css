@@ -1,12 +1,21 @@
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+}
+
 :root {
-  --bridge-blue: #0f4c81;
   --flow-teal: #00c2a8;
+  --teal-dark: #009e88;
+  --ink-blue: #0f4c81;
+  --bridge-blue: var(--ink-blue);
   --cloud: #f5f7fa;
+  --surface-1: #fafbfc;
   --charcoal: #1a202c;
   --stone: #718096;
   --white: #ffffff;
-  --teal-dark: #009e88;
-  --blue-dark: #0a3a63;
   --danger: #e53e3e;
   --success: #38a169;
 }
@@ -19,12 +28,18 @@
 
 body {
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+    "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-feature-settings:
+    "cv11",
+    "ss01",
+    "cv02";
+  font-variant-numeric: tabular-nums;
   color: var(--charcoal);
-  background: var(--cloud);
-  line-height: 1.6;
+  background: var(--surface-1);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .page-header {
@@ -34,8 +49,8 @@ body {
 
 .logo {
   font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--bridge-blue);
+  font-weight: 650;
+  color: var(--charcoal);
   text-decoration: none;
   letter-spacing: -0.02em;
 }
@@ -49,7 +64,7 @@ body {
 }
 
 .logo span {
-  color: var(--flow-teal);
+  color: inherit;
 }
 
 .booking-container {
@@ -126,7 +141,7 @@ body {
 
 .event-title {
   font-size: 1.75rem;
-  font-weight: 800;
+  font-weight: 650;
   line-height: 1.2;
   margin-bottom: 16px;
   letter-spacing: -0.02em;
@@ -510,7 +525,7 @@ body {
 
 .confirm-title {
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 650;
   margin-bottom: 8px;
 }
 

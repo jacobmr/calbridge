@@ -1,18 +1,82 @@
 /* MiCal Dashboard Styles */
 
+/* Inter Variable — self-hosted from /public/fonts/. font-display: swap so
+   text renders immediately in the fallback stack and reflows once Inter
+   loads. Single variable file covers every weight 100–900 and italic. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter Variable";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable-Italic.woff2") format("woff2");
+}
+
 :root {
-  --bridge-blue: #0f4c81;
+  /* Brand. Teal is the single primary accent for actions and active
+     states. --ink-blue is reserved for text-only use (link color, etc.);
+     the dashboard chrome should not pair it with teal anywhere. */
   --flow-teal: #00c2a8;
-  --cloud: #f5f7fa;
+  --teal-dark: #009e88;
+  --ink-blue: #0f4c81;
+  /* Legacy alias — many existing rules still reference --bridge-blue.
+     New rules should use --ink-blue (for text) or --flow-teal (for
+     accent/action). This alias keeps the file valid while we migrate. */
+  --bridge-blue: var(--ink-blue);
+
+  /* Surface scale. Grays read warmer than absolute neutral — closer to
+     Linear/Stripe than Material. */
+  --white: #ffffff;
+  --surface-1: #fafbfc; /* Page background */
+  --cloud: #f5f7fa; /* Card hovers, subtle tints */
+  --surface-3: #eef0f4; /* Borders that need to read as a panel */
+
+  /* Type colors */
   --charcoal: #1a202c;
   --stone: #718096;
-  --white: #ffffff;
-  --teal-dark: #009e88;
-  --blue-dark: #0a3a63;
+
+  /* Semantic */
   --danger: #e53e3e;
   --danger-dark: #c53030;
   --warning: #d69e2e;
   --success: #38a169;
+
+  /* Spacing scale — 4px base, no in-between values. Everything else
+     in the codebase should snap to a multiple of these. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Border-radius scale */
+  --radius-sm: 6px; /* small chips, dense controls */
+  --radius-md: 8px; /* buttons, inputs */
+  --radius-lg: 12px; /* cards */
+  --radius-xl: 16px; /* modals */
+  --radius-full: 9999px;
+
+  /* Shadow scale — cool-tinted (slate, not pure black), layered for depth */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 1px 1px rgba(15, 23, 42, 0.03);
+  --shadow-md: 0 4px 8px -2px rgba(15, 23, 42, 0.06),
+    0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-overlay: 0 16px 48px -8px rgba(15, 23, 42, 0.18),
+    0 4px 12px -4px rgba(15, 23, 42, 0.08);
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
 }
 
 * {
@@ -36,11 +100,18 @@ html {
 
 body {
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+    "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-feature-settings:
+    "cv11",
+    "ss01",
+    "cv02";
+  font-variant-numeric: tabular-nums;
   color: var(--charcoal);
-  line-height: 1.6;
-  background: var(--cloud);
+  line-height: 1.55;
+  background: var(--surface-1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Layout */
@@ -71,14 +142,17 @@ body {
 
 .sidebar-header a {
   font-size: 1.4rem;
-  font-weight: 800;
-  color: var(--bridge-blue);
+  font-weight: 650;
+  color: var(--charcoal);
   text-decoration: none;
   letter-spacing: -0.02em;
 }
 
+/* Wordmark used to split "Mi" charcoal + "Cal" teal — premium-SaaS
+   reference cohort (Linear, Vercel, Stripe) all ship single-color
+   wordmarks. The mark itself (logo.svg) carries the brand colors. */
 .sidebar-header a span {
-  color: var(--flow-teal);
+  color: inherit;
 }
 
 .sidebar-nav {
@@ -110,8 +184,8 @@ body {
 }
 
 .nav-item.active {
-  background: rgba(15, 76, 129, 0.08);
-  color: var(--bridge-blue);
+  background: rgba(0, 194, 168, 0.1);
+  color: var(--charcoal);
   font-weight: 600;
   position: relative;
 }
@@ -216,14 +290,14 @@ body {
 }
 
 .btn-secondary {
-  background: transparent;
-  color: var(--bridge-blue);
-  border: 1.5px solid var(--bridge-blue);
+  background: var(--white);
+  color: var(--charcoal);
+  border: 1px solid var(--surface-3);
 }
 
 .btn-secondary:hover {
-  background: var(--bridge-blue);
-  color: var(--white);
+  background: var(--cloud);
+  border-color: rgba(15, 23, 42, 0.18);
 }
 
 .btn-danger {
@@ -685,10 +759,12 @@ body {
 }
 
 .stat-value {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--bridge-blue);
-  line-height: 1.2;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--charcoal);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-label {
@@ -1613,37 +1689,38 @@ textarea {
   gap: 8px;
 }
 
+/* Provider marks — real SVG glyphs instead of letter-in-colored-box.
+   Inline data: URIs keep them deploy-portable; cost is ~600 bytes per
+   icon vs ~30 bytes for a letter. Worth it — the letter-box pattern
+   is the single most "I followed the Calendly tutorial" tell. */
+.provider-google::before,
+.provider-microsoft::before,
+.provider-ics::before {
+  content: "";
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  flex-shrink: 0;
+}
+
 .provider-google::before {
-  content: "G";
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: #4285f4;
-  color: white;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 700;
+  /* Four-color Google G */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><path fill='%23FFC107' d='M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8a12 12 0 1 1 0-24c3 0 5.8 1.2 8 3l5.7-5.7A20 20 0 1 0 24 44a20 20 0 0 0 19.6-23.9z'/><path fill='%23FF3D00' d='M6.3 14.7l6.6 4.8A12 12 0 0 1 24 12c3 0 5.8 1.2 8 3l5.7-5.7A20 20 0 0 0 6.3 14.7z'/><path fill='%234CAF50' d='M24 44a20 20 0 0 0 13.4-5.2l-6.2-5.2A12 12 0 0 1 12.7 28.6l-6.5 5A20 20 0 0 0 24 44z'/><path fill='%231976D2' d='M43.6 20.1H42V20H24v8h11.3a12 12 0 0 1-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.7-.4-3.9z'/></svg>");
 }
 
 .provider-microsoft::before {
-  content: "M";
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: #0078d4;
-  color: white;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 700;
+  /* Four-square Microsoft mark */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23 23'><path fill='%23F25022' d='M1 1h10v10H1z'/><path fill='%237FBA00' d='M12 1h10v10H12z'/><path fill='%2300A4EF' d='M1 12h10v10H1z'/><path fill='%23FFB900' d='M12 12h10v10H12z'/></svg>");
 }
 
 .provider-ics::before {
-  content: "📅";
-  font-size: 1rem;
+  /* Generic calendar glyph — matches the icon() set used elsewhere
+     in the dashboard rather than the 📅 emoji that rendered as
+     OS-specific pixel-art in the tab strip. */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23718096' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4.5' width='18' height='16' rx='2'/><path d='M3 9h18M8 2.5v4M16 2.5v4'/></svg>");
 }
 
 /* Actions */
@@ -1713,13 +1790,13 @@ textarea {
 
 .modal-dialog {
   background: var(--white);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   width: 100%;
   max-width: 640px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-overlay);
 }
 
 /* Poll create slot picker — one row per day, day header on the left and
@@ -2052,7 +2129,7 @@ textarea {
 
 .welcome-title {
   font-size: 1.6rem;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: -0.02em;
   margin-bottom: 8px;
   color: var(--charcoal);
