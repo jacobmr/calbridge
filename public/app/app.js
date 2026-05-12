@@ -890,9 +890,26 @@ function renderInviteBatchResults(overlay, settled) {
       row.textContent = `• ${r.name || r.email} — already a member`;
       row.style.color = "var(--stone)";
     } else if (r.invite_url && !r.email_sent) {
-      // Non-MiCal user, no email — show the link to copy.
+      // Non-MiCal user, email send failed → show the link to copy AND the
+      // reason the email didn't go through, so the inviter knows whether
+      // to chase Resend (rate limit, suppression list, bounce) or just
+      // distribute the link manually.
       const head = document.createElement("div");
       head.textContent = `⚠ ${r.name || r.email} — copy this link:`;
+      row.appendChild(head);
+
+      if (r.email_failure_reason) {
+        const why = document.createElement("div");
+        why.style.cssText =
+          "font-size:0.75rem;color:var(--stone);margin-top:2px";
+        // not_configured is the most common cause in dev — soften the copy.
+        why.textContent =
+          r.email_failure_reason === "not_configured"
+            ? "Email sending isn't configured for this environment."
+            : `Email send failed: ${r.email_failure_reason}`;
+        row.appendChild(why);
+      }
+
       const linkRow = document.createElement("div");
       linkRow.style.cssText =
         "display:flex;gap:8px;margin-top:4px;align-items:center";
@@ -908,7 +925,6 @@ function renderInviteBatchResults(overlay, settled) {
       copyBtn.addEventListener("click", () => copyToClipboard(r.invite_url));
       linkRow.appendChild(input);
       linkRow.appendChild(copyBtn);
-      row.appendChild(head);
       row.appendChild(linkRow);
     } else if (r.invite_url && r.email_sent) {
       row.textContent = `✓ ${r.name || r.email} — invitation emailed`;
