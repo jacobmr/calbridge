@@ -180,6 +180,33 @@ function showError(msg /*, container (kept for backwards-compat) */) {
 // No-op now that errors are non-blocking toasts; kept callable for existing code paths.
 function clearErrors(/* container */) {}
 
+// Skeleton placeholders. A shape that mimics the final layout reads as
+// faster than a spinner even at identical wall-clock time — the user's
+// eye has something to anchor to. Each helper returns an HTML string.
+function skeletonStats(n = 4) {
+  return `<div class="stats-grid">${Array.from(
+    { length: n },
+    () => `<div class="skeleton skeleton-stat"></div>`,
+  ).join("")}</div>`;
+}
+function skeletonRows(n = 5) {
+  return `<div class="card">${Array.from(
+    { length: n },
+    () => `<div class="skeleton skeleton-row"></div>`,
+  ).join("")}</div>`;
+}
+function skeletonOverview() {
+  return `
+    ${skeletonStats(4)}
+    <div class="card" style="margin-top:16px">
+      <div class="skeleton skeleton-line med"></div>
+      <div class="skeleton skeleton-line"></div>
+      <div class="skeleton skeleton-line short"></div>
+    </div>
+    ${skeletonRows(3)}
+  `;
+}
+
 // Clipboard helper shared across tabs (was previously defined inside
 // renderEventTypes, which made it unavailable until that tab rendered once).
 async function copyToClipboard(text) {
@@ -1482,9 +1509,22 @@ function showTab(tab) {
   // Hide all pages
   $$(".tab-page").forEach((page) => (page.style.display = "none"));
 
-  // Show selected page
+  // Show selected page with a brief enter animation. The class is
+  // self-removing on animationend so re-selecting the same tab re-plays
+  // it (the animation only fires while .tab-enter is present).
   const page = $(`#tab-${tab}`);
-  if (page) page.style.display = "block";
+  if (page) {
+    page.style.display = "block";
+    page.classList.remove("tab-enter");
+    // Force reflow so removing+re-adding the class restarts the animation.
+    void page.offsetWidth;
+    page.classList.add("tab-enter");
+    page.addEventListener(
+      "animationend",
+      () => page.classList.remove("tab-enter"),
+      { once: true },
+    );
+  }
 
   // Update page title. Group-scoped tabs prefix with the group name so the
   // top bar always tells you where you are — useful on mobile where the
@@ -1530,8 +1570,7 @@ function showTab(tab) {
 // ─── Overview / Command Center ───
 async function loadOverview() {
   const container = $("#overview-content");
-  container.innerHTML =
-    '<div class="loading"><div class="spinner"></div>Loading…</div>';
+  container.innerHTML = skeletonOverview();
 
   try {
     const [me, overview] = await Promise.all([
@@ -1860,8 +1899,7 @@ function renderWhatsNextCard(c) {
 // ─── Calendars ───
 async function loadCalendars() {
   const container = $("#calendars-content");
-  container.innerHTML =
-    '<div class="loading"><div class="spinner"></div>Loading calendars…</div>';
+  container.innerHTML = skeletonRows(4);
 
   try {
     calendars = await api("/api/calendars");
@@ -3222,8 +3260,7 @@ async function deleteEventType(id) {
 // ─── Bookings ───
 async function loadBookings() {
   const container = $("#bookings-content");
-  container.innerHTML =
-    '<div class="loading"><div class="spinner"></div>Loading bookings…</div>';
+  container.innerHTML = skeletonRows(5);
 
   try {
     bookings = await api("/api/bookings");
@@ -4378,6 +4415,121 @@ async function checkInviteRedeem() {
 }
 
 // ─── Init ───
+// ─── Modal accessibility ───
+//
+// Every modal in this app is hand-rolled (created via createElement, class
+// "modal-overlay open"). Rather than retrofit a11y into each one's close
+// handler, a single observer watches for any .modal-overlay.open entering
+// the DOM and installs: role=dialog + aria-modal, an initial focus, a Tab
+// focus-trap, and `inert` on the rest of the app so AT + keyboard can't
+// escape behind the modal. Teardown is automatic when the overlay is
+// removed or loses .open — no per-modal cleanup code required.
+const a11yInstalled = new WeakSet();
+
+function installModalA11y(overlay) {
+  if (a11yInstalled.has(overlay)) return;
+  a11yInstalled.add(overlay);
+
+  const dialog = overlay.querySelector(".modal-dialog") || overlay;
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+
+  const appLayout = document.querySelector(".app-layout");
+  const previouslyFocused = document.activeElement;
+
+  // Make the rest of the app non-interactive + invisible to AT while the
+  // modal is up. inert is widely supported in 2026; the aria-hidden is a
+  // belt-and-suspenders for older AT.
+  if (appLayout && !overlay.contains(appLayout)) {
+    appLayout.setAttribute("inert", "");
+    appLayout.setAttribute("aria-hidden", "true");
+  }
+
+  const focusables = () =>
+    [
+      ...overlay.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((el) => el.offsetParent !== null);
+
+  // Initial focus: first field, else the dialog itself.
+  const first = focusables()[0];
+  if (first) {
+    setTimeout(() => first.focus(), 0);
+  } else {
+    dialog.setAttribute("tabindex", "-1");
+    setTimeout(() => dialog.focus(), 0);
+  }
+
+  const onKeydown = (e) => {
+    if (e.key !== "Tab") return;
+    const f = focusables();
+    if (f.length === 0) return;
+    const firstEl = f[0];
+    const lastEl = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === firstEl) {
+      e.preventDefault();
+      lastEl.focus();
+    } else if (!e.shiftKey && document.activeElement === lastEl) {
+      e.preventDefault();
+      firstEl.focus();
+    }
+  };
+  overlay.addEventListener("keydown", onKeydown);
+
+  const teardown = () => {
+    overlay.removeEventListener("keydown", onKeydown);
+    if (appLayout) {
+      appLayout.removeAttribute("inert");
+      appLayout.removeAttribute("aria-hidden");
+    }
+    // Restore focus to whatever launched the modal so keyboard users
+    // aren't dumped at the top of the page.
+    if (previouslyFocused && previouslyFocused.focus) {
+      try {
+        previouslyFocused.focus();
+      } catch {
+        /* element may be gone — fine */
+      }
+    }
+    a11yInstalled.delete(overlay);
+    mo.disconnect();
+  };
+
+  // Tear down when the overlay leaves the DOM OR loses the .open class
+  // (some modals hide rather than remove — e.g. the static preview modal).
+  const mo = new MutationObserver(() => {
+    if (!overlay.isConnected || !overlay.classList.contains("open")) {
+      teardown();
+    }
+  });
+  mo.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+}
+
+// Watch for any modal entering the DOM or being toggled open, and install
+// a11y on it once. Covers the 7 dynamically-created modals + the static
+// preview modal in index.html.
+function watchModals() {
+  const scan = () => {
+    document
+      .querySelectorAll(".modal-overlay.open")
+      .forEach((m) => installModalA11y(m));
+  };
+  scan();
+  const mo = new MutationObserver(scan);
+  mo.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+}
+
 async function init() {
   try {
     currentUser = await api("/api/auth/me");
@@ -4389,6 +4541,7 @@ async function init() {
     // Fire-and-forget — redeem completes asynchronously and re-renders.
     checkInviteRedeem();
     showTab("overview");
+    watchModals();
   } catch (err) {
     // 401 handled by api()
   }

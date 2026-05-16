@@ -1570,6 +1570,54 @@ textarea {
   }
 }
 
+/* Skeleton loaders — used in place of spinners for content whose shape
+   is known ahead of time (stats grid, calendars list, bookings table).
+   A skeleton that mimics the final layout reads as faster than a
+   spinner even when the wall-clock time is identical. */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--cloud) 25%,
+    rgba(15, 23, 42, 0.06) 37%,
+    var(--cloud) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
+}
+
+.skeleton-stat {
+  height: 96px;
+  border-radius: var(--radius-lg);
+}
+
+.skeleton-row {
+  height: 56px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.skeleton-line {
+  height: 14px;
+  margin-bottom: var(--space-2);
+}
+
+.skeleton-line.short {
+  width: 40%;
+}
+.skeleton-line.med {
+  width: 65%;
+}
+
 /* Error */
 .error-banner {
   background: rgba(229, 62, 62, 0.08);
@@ -1777,7 +1825,7 @@ textarea {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(15, 23, 42, 0.45);
   z-index: 300;
   align-items: center;
   justify-content: center;
@@ -1786,6 +1834,7 @@ textarea {
 
 .modal-overlay.open {
   display: flex;
+  animation: overlay-in var(--duration-base) var(--ease-out-expo);
 }
 
 .modal-dialog {
@@ -1797,6 +1846,60 @@ textarea {
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-overlay);
+  /* Dialog rises + settles slightly faster than the backdrop fades —
+     classic "content arrives" feel rather than a flat appear. */
+  animation: modal-in var(--duration-base) var(--ease-out-expo);
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Tab cross-fade. showTab() adds .tab-enter when a page becomes visible;
+   the class is removed on animationend. 100ms is deliberately short —
+   navigation should feel instant but not jarring. */
+.tab-page.tab-enter {
+  animation: tab-in 140ms var(--ease-out-expo);
+}
+
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Respect the OS "reduce motion" setting. Premium products do this;
+   it's also an accessibility requirement (vestibular disorders). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Poll create slot picker — one row per day, day header on the left and
