@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/client.mjs";
 import { requireUser } from "../../lib/session.mjs";
+import { enforceLimit } from "../../lib/entitlements.mjs";
 
 function parsePathId(req) {
   const url = new URL(req.url, "http://localhost");
@@ -73,6 +74,16 @@ async function createEventType(req, res) {
     res.statusCode = 404;
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: "tenant not found" }));
+    return;
+  }
+
+  const gate = await enforceLimit(tenant.id, "eventTypes");
+  if (!gate.allowed) {
+    res.statusCode = gate.status;
+    res.setHeader("content-type", "application/json");
+    res.end(
+      JSON.stringify({ error: gate.reason, upgrade: true, plan: gate.plan }),
+    );
     return;
   }
 

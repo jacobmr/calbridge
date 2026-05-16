@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/client.mjs";
 import { requireUser } from "../../lib/session.mjs";
+import { enforceLimit } from "../../lib/entitlements.mjs";
 
 function parsePathId(req) {
   const url = new URL(req.url, "http://localhost");
@@ -121,6 +122,18 @@ async function createSyncFlow(req, res) {
     res.statusCode = 404;
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: "tenant not found" }));
+    return;
+  }
+
+  // Soft gate: free plan caps sync flows. Existing flows keep running;
+  // creating beyond the cap is blocked with an upgrade prompt (402).
+  const gate = await enforceLimit(tenant.id, "syncFlows");
+  if (!gate.allowed) {
+    res.statusCode = gate.status;
+    res.setHeader("content-type", "application/json");
+    res.end(
+      JSON.stringify({ error: gate.reason, upgrade: true, plan: gate.plan }),
+    );
     return;
   }
 

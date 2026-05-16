@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/client.mjs";
 import { requireUser } from "../../lib/session.mjs";
+import { enforceLimit } from "../../lib/entitlements.mjs";
 
 async function getTenantForUser(db, userId) {
   const r = await db.execute({
@@ -34,6 +35,37 @@ export default async function handler(req, res) {
       const err = new Error("selections array required");
       err.statusCode = 400;
       throw err;
+    }
+
+    // Soft gate: only NEW calendars count against the plan cap. Re-
+    // importing already-connected calendars (the upsert path below) is
+    // always allowed — never block touching existing config. We diff the
+    // selection against what's already connected, then check the batch
+    // of genuinely-new ones fits the plan.
+    const existingRows = await db.execute({
+      sql: "SELECT provider_calendar_id FROM calendars WHERE tenant_id = ?",
+      args: [tenant.id],
+    });
+    const already = new Set(
+      existingRows.rows.map((r) => r.provider_calendar_id),
+    );
+    const newCount = selections.filter(
+      (s) => !already.has(s.providerCalendarId),
+    ).length;
+    if (newCount > 0) {
+      const gate = await enforceLimit(tenant.id, "calendars", newCount);
+      if (!gate.allowed) {
+        res.statusCode = gate.status;
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify({
+            error: gate.reason,
+            upgrade: true,
+            plan: gate.plan,
+          }),
+        );
+        return;
+      }
     }
 
     const imported = [];

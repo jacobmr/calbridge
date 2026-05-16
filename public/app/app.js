@@ -175,6 +175,10 @@ function showSuccess(msg) {
   return showToast(msg, "success");
 }
 function showError(msg /*, container (kept for backwards-compat) */) {
+  // Sentinels handled elsewhere — don't double-surface as an error toast.
+  // "unauthorized": api() already redirected to /login.
+  // "upgrade-required": api() already showed the upgrade modal.
+  if (msg === "unauthorized" || msg === "upgrade-required") return;
   return showToast(msg, "error");
 }
 // No-op now that errors are non-blocking toasts; kept callable for existing code paths.
@@ -351,6 +355,14 @@ async function api(url, options = {}) {
   }
 
   if (!res.ok) {
+    // Plan limit hit. The server returns 402 + { upgrade: true, ... }.
+    // Show the upgrade prompt centrally and throw a sentinel so the
+    // ~10 per-flow catch blocks don't also fire a generic error toast
+    // (showError ignores "upgrade-required").
+    if (res.status === 402 && data?.upgrade) {
+      showUpgradePrompt(data);
+      throw new Error("upgrade-required");
+    }
     const msg = data?.error || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
@@ -1612,6 +1624,7 @@ function showTab(tab) {
     "event-types": "Event Types",
     bookings: "Bookings",
     polls: "Polls",
+    billing: "Billing",
     "group-settings": "Group settings",
     "group-schedule": "Schedule",
   };
@@ -1639,6 +1652,7 @@ function showTab(tab) {
   if (tab === "event-types") loadEventTypes();
   if (tab === "bookings") loadBookings();
   if (tab === "polls") loadPolls();
+  if (tab === "billing") loadBilling();
   if (tab === "group-settings") loadGroupSettings();
   if (tab === "group-schedule") loadGroupSchedule();
 }
@@ -4344,6 +4358,154 @@ async function openScheduleDialog(pollId, optionId) {
       submitBtn.textContent = "Schedule it";
       showError(err.message);
     }
+  });
+}
+
+// ─── Billing ───
+//
+// Phase A: shows the current plan, live usage vs limits, the plan
+// comparison, and upgrade CTAs. Checkout is wired in Phase B (the
+// CTAs read billingState.checkout_urls; until those exist they show
+// a "coming soon" state rather than a dead button).
+
+let billingState = null;
+
+async function loadBilling() {
+  const container = $("#billing-content");
+  container.innerHTML = skeletonRows(3);
+  try {
+    billingState = await api("/api/billing/status");
+    renderBilling();
+  } catch (err) {
+    if (err.message !== "unauthorized") {
+      container.innerHTML = `<div class="error-banner">Couldn't load billing: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function fmtLimit(v) {
+  return v == null ? "∞" : String(v);
+}
+
+function renderBilling() {
+  const container = $("#billing-content");
+  const s = billingState;
+  const planLabel = s.plans[s.plan]?.label || s.plan;
+
+  const usageRow = (label, feature) => {
+    const used = s.usage[feature] ?? 0;
+    const lim = s.limits[feature];
+    const atLimit = lim != null && used >= lim;
+    return `
+      <div class="usage-row">
+        <span class="usage-label">${label}</span>
+        <span class="usage-count ${atLimit ? "at-limit" : ""}">
+          ${used} <span class="usage-of">/ ${fmtLimit(lim)}</span>
+        </span>
+      </div>`;
+  };
+
+  // Upgrade targets that make sense from the current plan.
+  const canUp = [];
+  if (s.plan === "free") canUp.push("individual", "family");
+  else if (s.plan === "individual") canUp.push("family");
+
+  const planCard = (key) => {
+    const p = s.plans[key];
+    if (!p) return "";
+    const isCurrent = s.plan === key;
+    const url = s.checkout_urls?.[key];
+    let cta;
+    if (isCurrent) {
+      cta = `<button class="btn btn-secondary btn-sm" disabled>Current plan</button>`;
+    } else if (canUp.includes(key)) {
+      cta = url
+        ? `<a class="btn btn-primary btn-sm" href="${escapeHtml(url)}">Upgrade to ${escapeHtml(p.label)}</a>`
+        : `<button class="btn btn-primary btn-sm" disabled title="Checkout coming soon">Upgrade — coming soon</button>`;
+    } else {
+      cta = "";
+    }
+    return `
+      <div class="plan-card ${isCurrent ? "is-current" : ""}">
+        <div class="plan-card-name">${escapeHtml(p.label)}</div>
+        <ul class="plan-card-list">
+          <li>${fmtLimit(p.calendars === Infinity ? null : p.calendars)} calendars</li>
+          <li>${fmtLimit(p.syncFlows === Infinity ? null : p.syncFlows)} sync flows</li>
+          <li>${fmtLimit(p.eventTypes === Infinity ? null : p.eventTypes)} booking pages</li>
+          <li>${p.groups ? "Family groups" : "No groups"}</li>
+          <li>${p.brandingFooter ? '"Sent with MiCal" footer' : "No MiCal footer"}</li>
+        </ul>
+        ${cta}
+      </div>`;
+  };
+
+  const statusNote =
+    s.plan !== "free" && s.plan_status && s.plan_status !== "active"
+      ? `<p class="muted" style="margin-top:8px">Subscription status: <strong>${escapeHtml(s.plan_status)}</strong>${
+          s.plan_renews_at
+            ? ` · access through ${new Date(s.plan_renews_at).toLocaleDateString()}`
+            : ""
+        }</p>`
+      : "";
+
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Your plan</div></div>
+      <p>You're on <strong>${escapeHtml(planLabel)}</strong>.</p>
+      ${statusNote}
+      <div class="usage-grid" style="margin-top:16px">
+        ${usageRow("Connected calendars", "calendars")}
+        ${usageRow("Sync flows", "syncFlows")}
+        ${usageRow("Booking pages", "eventTypes")}
+        ${usageRow("Polls", "polls")}
+        ${usageRow("Groups", "groups")}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Plans</div></div>
+      <div class="plan-grid">
+        ${planCard("free")}
+        ${planCard("individual")}
+        ${planCard("family")}
+      </div>
+    </div>
+  `;
+}
+
+// Triggered centrally from api() on a 402 { upgrade:true }. Explains
+// which limit was hit and routes to the Billing tab.
+function showUpgradePrompt(data) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open";
+  overlay.innerHTML = `
+    <div class="modal-dialog" style="max-width:440px">
+      <div class="modal-header">
+        <h3>Upgrade to continue</h3>
+        <button class="modal-close" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p>${escapeHtml(data.error || "You've reached a limit on your current plan.")}</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" id="up-later">Not now</button>
+        <button class="btn btn-primary" type="button" id="up-see">See plans</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+  };
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  overlay.querySelector("#up-later").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector("#up-see").addEventListener("click", () => {
+    close();
+    showTab("billing");
   });
 }
 

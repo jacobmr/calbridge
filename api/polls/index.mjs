@@ -13,6 +13,7 @@ import {
   loadPollDetail,
 } from "../../lib/polls.mjs";
 import { sendPollInviteEmail } from "../../lib/email.mjs";
+import { enforceLimit } from "../../lib/entitlements.mjs";
 
 async function listPolls(req, res) {
   const { user } = await requireUser(req);
@@ -64,6 +65,15 @@ async function createPoll(req, res) {
     res.statusCode = 404;
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: "tenant not found" }));
+    return;
+  }
+  const gate = await enforceLimit(tenant.id, "polls");
+  if (!gate.allowed) {
+    res.statusCode = gate.status;
+    res.setHeader("content-type", "application/json");
+    res.end(
+      JSON.stringify({ error: gate.reason, upgrade: true, plan: gate.plan }),
+    );
     return;
   }
   const body = await readJson(req);

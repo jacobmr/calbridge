@@ -9,6 +9,8 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/client.mjs";
 import { requireUser } from "../../lib/session.mjs";
 import { pickUniqueSlug, readJson, sendError } from "../../lib/groups.mjs";
+import { getTenantForUser } from "../../lib/polls.mjs";
+import { enforceLimit } from "../../lib/entitlements.mjs";
 
 async function listGroups(req, res) {
   const { user } = await requireUser(req);
@@ -60,6 +62,22 @@ async function createGroup(req, res) {
     const err = new Error("type must be 'family' or 'team'");
     err.statusCode = 400;
     throw err;
+  }
+
+  // Groups are a Family-plan feature (free + individual cap = 0). Soft
+  // gate: block creation with an upgrade prompt. Existing groups (e.g.
+  // created before a downgrade) keep working — we only block new ones.
+  const tenant = await getTenantForUser(user.id);
+  if (tenant) {
+    const gate = await enforceLimit(tenant.id, "groups");
+    if (!gate.allowed) {
+      res.statusCode = gate.status;
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({ error: gate.reason, upgrade: true, plan: gate.plan }),
+      );
+      return;
+    }
   }
 
   const db = getDb();
