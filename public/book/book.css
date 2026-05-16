@@ -275,7 +275,7 @@ body {
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1.5px solid transparent;
+  border: 1px solid transparent;
   background: var(--white);
   transition: all 0.15s;
   font-family: inherit;
@@ -342,7 +342,7 @@ body {
 .time-slot {
   padding: 12px;
   border-radius: 10px;
-  border: 1.5px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   background: var(--white);
   font-size: 0.95rem;
   font-weight: 600;
@@ -411,7 +411,7 @@ body {
 .form-group textarea {
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   font-size: 1rem;
   font-family: inherit;
   color: var(--charcoal);
@@ -470,7 +470,7 @@ body {
 .btn-secondary {
   background: transparent;
   color: var(--bridge-blue);
-  border: 1.5px solid var(--bridge-blue);
+  border: 1px solid var(--bridge-blue);
 }
 
 .btn-secondary:hover {

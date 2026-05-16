@@ -61,7 +61,7 @@ const ICONS = {
 function icon(name, size = 18) {
   const body = ICONS[name];
   if (!body) return "";
-  return `<svg class="icon icon-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  return `<svg class="icon icon-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
 // Empty-state illustration: a soft background blob in --cloud + brand-color
@@ -77,7 +77,7 @@ function illustration(name, size = 88) {
     <svg class="illust illust-${name}" width="${size}" height="${size}" viewBox="0 0 88 88" aria-hidden="true">
       <circle cx="44" cy="44" r="40" fill="rgba(0, 194, 168, 0.08)"/>
       <circle cx="44" cy="44" r="40" fill="none" stroke="rgba(0, 194, 168, 0.18)" stroke-width="1"/>
-      <g transform="translate(20 20) scale(2)" fill="none" stroke="var(--bridge-blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(20 20) scale(2)" fill="none" stroke="var(--ink-blue)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
         ${body}
       </g>
     </svg>

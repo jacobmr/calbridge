@@ -96,6 +96,13 @@
 
 html {
   scroll-behavior: smooth;
+  /* Explicit light scheme. The semantic tokens above are the seam a
+     future dark theme plugs into — when we're ready, add a
+     @media (prefers-color-scheme: dark) (or a [data-theme="dark"])
+     block that remaps --surface-*/--charcoal/--stone and tokenizes the
+     remaining hardcoded rgba borders. Until then this prevents the OS
+     dark setting from rendering form controls dark on a light app. */
+  color-scheme: light;
 }
 
 body {
@@ -1283,11 +1290,30 @@ tbody tr:last-child td {
 
 .stat-card.clickable {
   cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-out-expo),
+    box-shadow var(--duration-fast) var(--ease-out-expo);
 }
 
-.stat-card.clickable:hover {
+/* Unified clickable-surface lift. Anything the user can click that's
+   card-shaped gets the same -1px rise + soft shadow on hover — one
+   consistent affordance instead of five different background tints.
+   The expo-out curve makes it feel like the card is responding, not
+   just changing state. */
+.stat-card.clickable:hover,
+.account-card.clickable:hover,
+.whats-next-item.clickable:hover,
+.attention-item:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-md);
+}
+
+.account-card,
+.whats-next-item,
+.attention-item {
+  transition:
+    transform var(--duration-fast) var(--ease-out-expo),
+    box-shadow var(--duration-fast) var(--ease-out-expo);
 }
 
 /* Forms */
@@ -2187,7 +2213,7 @@ textarea {
 
 .type-card {
   padding: 14px 16px;
-  border: 1.5px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
   background: var(--white);
   display: flex;

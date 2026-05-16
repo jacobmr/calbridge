@@ -149,7 +149,7 @@ nav {
 .btn-secondary {
   background: transparent;
   color: var(--bridge-blue);
-  border: 1.5px solid var(--bridge-blue);
+  border: 1px solid var(--bridge-blue);
 }
 
 .btn-secondary:hover {
