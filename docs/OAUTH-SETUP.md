@@ -81,25 +81,89 @@ Console: <https://console.cloud.google.com>
 
 **APIs & Services → OAuth consent screen → Data Access → Add or remove scopes**
 
-Search for and add each of these:
+Add each of these:
 
+- `openid`
 - `.../auth/userinfo.email`
 - `.../auth/userinfo.profile`
-- `openid`
 - `.../auth/calendar.readonly`
 - `.../auth/calendar.events`
+- `.../auth/contacts.readonly`
+- `.../auth/contacts.other.readonly`
 
-For each restricted scope (`calendar.readonly`, `calendar.events`)
-Google will ask you to describe the data-handling justification:
+#### Scope justification (the part that gets rejected)
 
-> MiCal reads the user's calendar to display a merged view across
-> providers, run user-configured sync flows that copy events to other
-> calendars they own, check availability for meeting polls the user
-> creates, and surface group/family schedules. MiCal writes events to
-> create bookings made through the user's public booking page and to
-> create the winning event when a poll is scheduled. All tokens are
-> encrypted at rest with AES-256-GCM; data is never shared with third
-> parties and not used to train models.
+Google's reviewers reject generic justifications with: _"does not
+sufficiently explain why the requested OAuth scopes are necessary …
+request minimum scopes."_ They want, **per scope**: (a) the concrete
+in-product feature that needs it, and (b) an explicit argument that it
+is the _narrowest_ scope that works and that you deliberately did not
+request anything broader. Paste the following verbatim into the
+justification field (or reply with it on the verification email
+thread):
+
+> MiCal (https://www.mical.net) connects a user's Google Calendar to
+> other calendars they own, publishes booking pages, runs scheduling
+> polls, and shares availability with family/team members. Per-scope
+> justification and minimality:
+>
+> **calendar.readonly** — Feature: we enumerate the user's calendar
+> list so they can choose which calendars MiCal includes; we render a
+> read-only merged view across those calendars; and we compute
+> free/busy for booking-page slot availability, meeting-poll
+> pre-check, and group availability. Minimality: the narrower
+> calendar.events scope does NOT expose CalendarList (the set of
+> calendars the user owns/subscribes to), which we must enumerate for
+> the calendar-picker UI. calendar.readonly is the narrowest scope
+> that grants CalendarList plus cross-calendar event reads. We
+> deliberately do NOT request the broader auth/calendar scope because
+> we do not need write access to all calendars for these read
+> operations.
+>
+> **calendar.events** — Feature: when a visitor books a time on the
+> user's public booking page, or when a scheduling poll the user
+> created is resolved, MiCal creates that event on the user's chosen
+> calendar (with attendees and an optional Google Meet link). User-
+> configured one-way sync flows also create/update/delete mirrored
+> events on the user's own target calendar. Minimality: calendar.events
+> is scoped to event read/write only — it does not grant calendar
+> management or sharing-ACL access. It is the minimum scope that
+> permits creating the events these features require. We pair it with
+> calendar.readonly rather than requesting the broader auth/calendar
+> scope.
+>
+> **contacts.readonly** — Feature: when the user sends a meeting-poll
+> invitation or a family/team group invitation, MiCal offers email
+> autocomplete from the user's Google Contacts so they do not retype
+> addresses. Minimality: read-only — MiCal never creates or modifies
+> contacts. No narrower Google scope exposes contact email addresses.
+> Contacts are read on demand into the user's browser session for
+> autocomplete only and are not persisted on MiCal servers.
+>
+> **contacts.other.readonly** — Feature: most users' frequent
+> correspondents live in Google "Other contacts" (auto-collected from
+> Gmail), not formal Contacts; without this the invitation
+> autocomplete is missing the people users most often invite.
+> Minimality: read-only, and it is the dedicated minimal scope for the
+> "Other contacts" surface — contacts.readonly does not include it.
+> Same handling: session-only, never persisted server-side.
+>
+> **openid / userinfo.email / userinfo.profile** — Feature: sign-in
+> identity (email as account key, display name + avatar in the
+> dashboard). These are the standard minimal OpenID Connect identity
+> scopes.
+>
+> Data handling, all scopes: OAuth tokens are encrypted at rest with
+> AES-256-GCM. Calendar and contact data are used solely to deliver
+> the features above, are never sold or shared with third parties, and
+> are never used to train AI/ML models. Disconnecting an account
+> deletes the stored tokens.
+
+Why this passes where the old one didn't: it names each scope, binds
+it to a specific feature, and — critically — argues *minimality*
+("the narrower scope X doesn't expose Y; we did NOT request the
+broader auth/calendar"). That minimality argument is the literal thing
+the rejection asked for.
 
 ### 3. Credentials
 
