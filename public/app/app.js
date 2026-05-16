@@ -180,6 +180,62 @@ function showError(msg /*, container (kept for backwards-compat) */) {
 // No-op now that errors are non-blocking toasts; kept callable for existing code paths.
 function clearErrors(/* container */) {}
 
+// ─── Inline field validation ───
+//
+// fieldError(input, msg) marks a field invalid and renders a message in a
+// sibling .field-error slot (created on demand, wired via aria-describedby
+// for screen readers). clearFieldError(input) reverses it. validateField
+// runs a list of {test, msg} rules and shows the first failure.
+//
+// Pattern for a form:
+//   const titleInput = overlay.querySelector("#cp-title");
+//   titleInput.addEventListener("blur", () =>
+//     validateField(titleInput, [
+//       { test: (v) => v.trim().length > 0, msg: "Give the poll a title." },
+//     ]),
+//   );
+// and on submit, bail if any validateField(...) returns false.
+
+let _fieldErrorSeq = 0;
+
+function fieldError(input, msg) {
+  input.classList.add("input-invalid");
+  input.setAttribute("aria-invalid", "true");
+  let slot = input.nextElementSibling;
+  if (!slot || !slot.classList.contains("field-error")) {
+    slot = document.createElement("div");
+    slot.className = "field-error";
+    slot.id = `fe-${++_fieldErrorSeq}`;
+    input.insertAdjacentElement("afterend", slot);
+    input.setAttribute("aria-describedby", slot.id);
+  }
+  slot.textContent = msg;
+}
+
+function clearFieldError(input) {
+  input.classList.remove("input-invalid");
+  input.removeAttribute("aria-invalid");
+  const slot = input.nextElementSibling;
+  if (slot && slot.classList.contains("field-error")) {
+    slot.remove();
+    input.removeAttribute("aria-describedby");
+  }
+}
+
+// Returns true if all rules pass, false (and shows the first failure)
+// otherwise. rules: [{ test: (value) => boolean, msg: string }]
+function validateField(input, rules) {
+  const v = input.value;
+  for (const r of rules) {
+    if (!r.test(v)) {
+      fieldError(input, r.msg);
+      return false;
+    }
+  }
+  clearFieldError(input);
+  return true;
+}
+
 // Skeleton placeholders. A shape that mimics the final layout reads as
 // faster than a spinner even at identical wall-clock time — the user's
 // eye has something to anchor to. Each helper returns an HTML string.
@@ -464,13 +520,33 @@ function openCreateGroupDialog() {
 
   setTimeout(() => overlay.querySelector("#cg-name").focus(), 50);
 
+  const nameInput = overlay.querySelector("#cg-name");
+  const nameRules = [
+    { test: (v) => v.trim().length > 0, msg: "Give the group a name." },
+    {
+      test: (v) => v.trim().length >= 2,
+      msg: "Name needs at least 2 characters.",
+    },
+  ];
+  // Validate on blur (not on every keystroke — that punishes people
+  // mid-typing) and clear the error as soon as they fix it.
+  nameInput.addEventListener("blur", () => validateField(nameInput, nameRules));
+  nameInput.addEventListener("input", () => {
+    if (nameInput.classList.contains("input-invalid")) {
+      validateField(nameInput, nameRules);
+    }
+  });
+
   overlay
     .querySelector("#create-group-form")
     .addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (!validateField(nameInput, nameRules)) {
+        nameInput.focus();
+        return;
+      }
       const name = overlay.querySelector("#cg-name").value.trim();
       const type = overlay.querySelector('input[name="cg-type"]:checked').value;
-      if (!name) return;
       const submitBtn = overlay.querySelector("#cg-submit");
       submitBtn.disabled = true;
       submitBtn.textContent = "Creating…";
@@ -3597,11 +3673,29 @@ function openCreatePollDialog() {
   );
   pickerState.inviteesPicker = inviteesPicker;
 
+  const titleInput = overlay.querySelector("#cp-title");
+  const titleRules = [
+    { test: (v) => v.trim().length > 0, msg: "Give the poll a title." },
+  ];
+  titleInput.addEventListener("blur", () =>
+    validateField(titleInput, titleRules),
+  );
+  titleInput.addEventListener("input", () => {
+    if (titleInput.classList.contains("input-invalid")) {
+      validateField(titleInput, titleRules);
+    }
+  });
+
   overlay
     .querySelector("#create-poll-form")
     .addEventListener("submit", async (e) => {
       e.preventDefault();
       const submitBtn = overlay.querySelector("#cp-submit");
+
+      if (!validateField(titleInput, titleRules)) {
+        titleInput.focus();
+        return;
+      }
       submitBtn.disabled = true;
       submitBtn.textContent = "Creating…";
 
@@ -4424,11 +4518,14 @@ async function checkInviteRedeem() {
 // focus-trap, and `inert` on the rest of the app so AT + keyboard can't
 // escape behind the modal. Teardown is automatic when the overlay is
 // removed or loses .open — no per-modal cleanup code required.
-const a11yInstalled = new WeakSet();
+// One observer for all modal a11y — installs on open, tears down on
+// close. The teardown state lives on a per-overlay record kept in this
+// Map (WeakMap-style but iterable via the live DOM query, so a plain
+// Map keyed by the element is fine; entries are deleted on teardown).
+const modalA11y = new Map();
 
 function installModalA11y(overlay) {
-  if (a11yInstalled.has(overlay)) return;
-  a11yInstalled.add(overlay);
+  if (modalA11y.has(overlay)) return;
 
   const dialog = overlay.querySelector(".modal-dialog") || overlay;
   dialog.setAttribute("role", "dialog");
@@ -4438,7 +4535,7 @@ function installModalA11y(overlay) {
   const previouslyFocused = document.activeElement;
 
   // Make the rest of the app non-interactive + invisible to AT while the
-  // modal is up. inert is widely supported in 2026; the aria-hidden is a
+  // modal is up. inert is widely supported in 2026; aria-hidden is a
   // belt-and-suspenders for older AT.
   if (appLayout && !overlay.contains(appLayout)) {
     appLayout.setAttribute("inert", "");
@@ -4452,7 +4549,6 @@ function installModalA11y(overlay) {
       ),
     ].filter((el) => el.offsetParent !== null);
 
-  // Initial focus: first field, else the dialog itself.
   const first = focusables()[0];
   if (first) {
     setTimeout(() => first.focus(), 0);
@@ -4477,14 +4573,12 @@ function installModalA11y(overlay) {
   };
   overlay.addEventListener("keydown", onKeydown);
 
-  const teardown = () => {
+  modalA11y.set(overlay, () => {
     overlay.removeEventListener("keydown", onKeydown);
     if (appLayout) {
       appLayout.removeAttribute("inert");
       appLayout.removeAttribute("aria-hidden");
     }
-    // Restore focus to whatever launched the modal so keyboard users
-    // aren't dumped at the top of the page.
     if (previouslyFocused && previouslyFocused.focus) {
       try {
         previouslyFocused.focus();
@@ -4492,37 +4586,27 @@ function installModalA11y(overlay) {
         /* element may be gone — fine */
       }
     }
-    a11yInstalled.delete(overlay);
-    mo.disconnect();
-  };
-
-  // Tear down when the overlay leaves the DOM OR loses the .open class
-  // (some modals hide rather than remove — e.g. the static preview modal).
-  const mo = new MutationObserver(() => {
-    if (!overlay.isConnected || !overlay.classList.contains("open")) {
-      teardown();
-    }
-  });
-  mo.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["class"],
   });
 }
 
-// Watch for any modal entering the DOM or being toggled open, and install
-// a11y on it once. Covers the 7 dynamically-created modals + the static
-// preview modal in index.html.
+// Single observer: install a11y on any modal that's open, tear down any
+// tracked modal that has closed (removed from DOM or lost .open). One
+// querySelectorAll over the handful of .modal-overlay nodes per relevant
+// mutation — cheap, and avoids the N-observers pattern.
 function watchModals() {
-  const scan = () => {
+  const sync = () => {
     document
       .querySelectorAll(".modal-overlay.open")
       .forEach((m) => installModalA11y(m));
+    for (const [overlay, teardown] of modalA11y) {
+      if (!overlay.isConnected || !overlay.classList.contains("open")) {
+        teardown();
+        modalA11y.delete(overlay);
+      }
+    }
   };
-  scan();
-  const mo = new MutationObserver(scan);
-  mo.observe(document.body, {
+  sync();
+  new MutationObserver(sync).observe(document.body, {
     childList: true,
     subtree: true,
     attributes: true,

@@ -1415,6 +1415,51 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--flow-teal);
+  box-shadow: 0 0 0 3px rgba(0, 194, 168, 0.12);
+}
+
+/* Inline field validation. .input-invalid is toggled by validateField();
+   the message lives in a sibling .field-error slot wired via
+   aria-describedby. Replaces submit-only toast feedback — the single
+   biggest "this is a CRUD form" tell per the design review. */
+.input-invalid,
+.input-invalid:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.12);
+}
+
+.field-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+
+.field-error::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background: no-repeat center / contain
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e53e3e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 8v4M12 16h.01'/></svg>");
+}
+
+/* Inline "saved" affordance — a quiet confirmation that beats a toast
+   for in-place edits (rename, settings tweaks). */
+.saved-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--success);
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out-expo);
+}
+
+.saved-hint.show {
+  opacity: 1;
 }
 
 input::placeholder,
