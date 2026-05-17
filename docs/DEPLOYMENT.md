@@ -154,7 +154,55 @@ npm run db:migrate
 
 Migrations are idempotent — the runner tracks applied migrations in `schema_migrations`.
 
-**Current schema:** `db/migrations/0001_init.sql`
+**Current schema:** through `db/migrations/0008_billing.sql` (applied to
+prod 2026-05-17).
+
+---
+
+## Billing (Lemon Squeezy)
+
+**Model:** freemium-forever. Tiers: Free / Individual / Family (Team
+deferred — backlog). Soft gates (never disable existing config; block
+new + upgrade prompt). Single billing cadence in v1 (one LS variant
+link per tier; monthly+annual toggle backlogged until store activation).
+
+**Status: code-complete, deployed, prod-verified — TEST MODE.**
+
+| Piece | State |
+|---|---|
+| Schema (`0008_billing.sql`) | ✅ applied to prod |
+| Entitlements (`lib/entitlements.mjs`) | ✅ live — PLANS map, `effectivePlan` (dunning grace), `enforceLimit` |
+| Soft gates | ✅ wired: calendars-import, sync-flows, event-types, polls, groups |
+| Billing tab + upgrade modal | ✅ live |
+| `/api/billing/status` | ✅ live (plan + usage + checkout links) |
+| Webhook `/webhook` → `/api/billing/webhook` | ✅ live, signed-HMAC verified, **end-to-end tested in prod** (valid→200+plan flip, tampered→401, unmapped→200 no-op) |
+| Vercel env (5 `LEMONSQUEEZY_*`) | ✅ pushed + redeployed 2026-05-17 |
+| LS store activation | ⏳ pending LS approval — everything is test-mode until then |
+
+**Secrets** (`/data/dev/inventory/secrets/calbridge.enc.env`, SOPS):
+`LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_WEBHOOK_SECRET`,
+`LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_CHECKOUT_INDIVIDUAL`,
+`LEMONSQUEEZY_CHECKOUT_FAMILY`. All test-mode values.
+
+**Reconciliation:** checkout appends
+`checkout[custom][tenant_id]` + `[plan]`; the webhook keys the tenant
+update off `tenant_id` (fallback: `ls_subscription_id`). Cadence is an
+LS-internal billing-period concern — entitlements key only off
+`custom.plan` (`individual|family`).
+
+**Founder comp:** tenant `jacob@reider.us` is set `plan=family`
+directly in the DB (no LS subscription) — stays family until manually
+changed; webhooks won't touch it (no `ls_subscription_id`).
+
+**On LS store activation** (backlog, see PLAN.md):
+1. Swap test→live API key / webhook secret / checkout links in SOPS,
+   push to Vercel, redeploy.
+2. Confirm LS webhook points at `https://www.mical.net/webhook`.
+3. Create the 2nd variant per product, add the 4 variant links + a
+   Monthly/Yearly toggle to the Billing tab.
+4. Create the F&F discount code in LS (100%-off, capped redemptions,
+   expiry — native LS discount, no app-side coupon code).
+5. Smoke-test a real test-card ($0 F&F code) subscription end to end.
 
 ---
 
