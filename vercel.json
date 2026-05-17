@@ -15,6 +15,14 @@
     {
       "source": "/api/groups/:id/feed.ics",
       "destination": "/api/groups/:id/feed"
+    },
+    {
+      "source": "/webhook",
+      "destination": "/api/billing/webhook"
+    },
+    {
+      "source": "/webhook/",
+      "destination": "/api/billing/webhook"
     }
   ]
 }

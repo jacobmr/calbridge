@@ -106,9 +106,7 @@ export default async function handler(req, res) {
           groups: num(groups),
         },
         plans: allPlans(),
-        // Phase B fills checkout_urls keyed by target plan; until then
-        // the UI shows "upgrade" CTAs that are inert/"coming soon".
-        checkout_urls: {},
+        checkout_urls: buildCheckoutUrls(t.id, user.email),
       }),
     );
   } catch (err) {
@@ -116,6 +114,35 @@ export default async function handler(req, res) {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ error: err.message || "server error" }));
   }
+}
+
+// Build per-tenant Lemon Squeezy hosted-checkout links. We append the
+// LS checkout query params so the resulting subscription can be
+// reconciled back to this tenant by the webhook:
+//   checkout[email]              prefills the buyer email
+//   checkout[custom][tenant_id]  echoed in meta.custom_data
+//   checkout[custom][plan]       the entitlement tier the webhook sets
+//
+// v1 is single-cadence: one variant link per tier (env). Monthly/yearly
+// toggle + the other two variant links are backlogged until the LS
+// store is activated. Returns only the tiers whose env link is set, so
+// a missing config degrades to a "coming soon" CTA rather than a broken
+// link.
+function buildCheckoutUrls(tenantId, email) {
+  const out = {};
+  const mk = (base, plan) => {
+    if (!base) return null;
+    const u = new URL(base);
+    if (email) u.searchParams.set("checkout[email]", email);
+    u.searchParams.set("checkout[custom][tenant_id]", tenantId);
+    u.searchParams.set("checkout[custom][plan]", plan);
+    return u.toString();
+  };
+  const ind = mk(process.env.LEMONSQUEEZY_CHECKOUT_INDIVIDUAL, "individual");
+  const fam = mk(process.env.LEMONSQUEEZY_CHECKOUT_FAMILY, "family");
+  if (ind) out.individual = ind;
+  if (fam) out.family = fam;
+  return out;
 }
 
 // Infinity isn't JSON-serializable (becomes null) — make the "unlimited"

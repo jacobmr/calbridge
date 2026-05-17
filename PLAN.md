@@ -720,6 +720,25 @@ This is the same sync engine, but the target calendar belongs to a different use
 - **Invite-mode push approval.** `acceptance_mode='invite'` in
   `group_receive_settings` is parked — we honor `auto` and `block`
   but skip `invite` until the approval flow exists.
+- **Billing: monthly + annual cadence.** v1 ships single-cadence —
+  one Lemon Squeezy variant buy-link per tier
+  (`LEMONSQUEEZY_CHECKOUT_INDIVIDUAL` / `_FAMILY`). PLAN pricing
+  specs both ($5/mo + $48/yr, $7/mo + $60/yr). When the LS store is
+  activated, create the second variant per product, grab all 4
+  variant buy-links, add a Monthly/Yearly toggle to the Billing tab,
+  and route to the right link. No entitlement/webhook change needed —
+  cadence is purely an LS billing-period concern; `custom.plan`
+  (individual|family) already drives gating.
+- **Billing: Lemon Squeezy store activation.** Until LS approves the
+  store, everything is test-mode. On activation: swap the test
+  checkout links + API key + webhook secret in the SOPS store for
+  live values, push to Vercel env, re-point/confirm the LS webhook
+  at `https://www.mical.net/webhook`, and smoke-test a real $0
+  (100%-off F&F code) subscription end to end.
+- **Billing: Team tier.** Deferred from v1. Per-seat ($5/seat/mo),
+  seat counting + proration + admin/audit. Entitlements scaffold
+  (`lib/entitlements.mjs` PLANS map) already has the seam — `team`
+  currently falls through to individual limits.
 - **Meeting polls (Doodle / Calendly Poll competitor).** Organizer
   proposes N candidate slots; invitees pick the ones that work; system
   picks the winner (best fit, or organizer-confirmed) and sends an
