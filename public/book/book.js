@@ -7,10 +7,18 @@ const $$ = (sel) => document.querySelectorAll(sel);
 // any link minted before the rename still works forever).
 function getParams() {
   const u = new URL(window.location.href);
-  return {
-    host: u.searchParams.get("host") || u.searchParams.get("tenant") || "",
-    event: u.searchParams.get("event") || "",
-  };
+  let host = u.searchParams.get("host") || u.searchParams.get("tenant") || "";
+  let event = u.searchParams.get("event") || "";
+  // Pretty short URLs (/b/:host/:event) are an internal Vercel rewrite, so the
+  // browser URL keeps the path form with no query string. Parse the path too.
+  if (!host || !event) {
+    const m = u.pathname.match(/^\/b\/([^/]+)\/([^/]+)\/?$/);
+    if (m) {
+      host = host || decodeURIComponent(m[1]);
+      event = event || decodeURIComponent(m[2]);
+    }
+  }
+  return { host, event };
 }
 
 function show(el) {
